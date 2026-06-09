@@ -11,6 +11,7 @@ interface SaveBody {
   sent?: boolean;
   tva_applicable?: boolean;
   transcript?: string | null;
+  trade?: string | null;
 }
 
 /** POST /api/quotes — create a quote, logging any rate overrides. */
@@ -32,6 +33,7 @@ export async function POST(request: Request): Promise<Response> {
       sent: body.sent ?? false,
       tva_applicable: body.tva_applicable ?? true,
       transcript: body.transcript ?? null,
+      trade: body.trade ?? null,
     });
     return NextResponse.json({ id: saved.id }, { status: 201 });
   } catch (err) {

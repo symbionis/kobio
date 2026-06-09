@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Quote } from "../../src/quote/types";
+import { TRADES } from "../../src/quote/trades";
 import AuthOtp from "../components/AuthOtp";
 import QuoteEditor from "../components/QuoteEditor";
 import TranscriptPanel from "../components/TranscriptPanel";
@@ -44,6 +45,7 @@ export default function NewQuotePage() {
   const [needAuth, setNeedAuth] = useState(false);
   const [companyHasVat, setCompanyHasVat] = useState(false);
   const [tvaApplicable, setTvaApplicable] = useState(true);
+  const [trade, setTrade] = useState<string>("");
   const [seconds, setSeconds] = useState(0);
 
   const router = useRouter();
@@ -53,11 +55,14 @@ export default function NewQuotePage() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // TVA is applied only when the issuer is VAT-registered (vat_number in Réglages).
+  // TVA applies only when VAT-registered; default the trade from the company profile.
   useEffect(() => {
     fetch("/api/company")
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => setCompanyHasVat(Boolean(data?.company?.vat_number)))
+      .then((data) => {
+        setCompanyHasVat(Boolean(data?.company?.vat_number));
+        if (data?.company?.trade) setTrade(data.company.trade as string);
+      })
       .catch(() => setCompanyHasVat(false));
   }, []);
 
@@ -146,6 +151,7 @@ export default function NewQuotePage() {
     try {
       const form = new FormData();
       form.append("audio", blob, blob instanceof File ? blob.name : "note.webm");
+      if (trade) form.append("trade", trade);
       const res = await fetch("/api/quote", { method: "POST", body: form });
       const data = (await res.json()) as QuoteResponse & { error?: string };
       if (!res.ok) throw new Error(data.error ?? `Erreur ${res.status}`);
@@ -169,7 +175,7 @@ export default function NewQuotePage() {
       const res = await fetch("/api/quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript: text }),
+        body: JSON.stringify({ transcript: text, trade: trade || null }),
       });
       const data = (await res.json()) as QuoteResponse & { error?: string };
       if (!res.ok) throw new Error(data.error ?? `Erreur ${res.status}`);
@@ -210,6 +216,7 @@ export default function NewQuotePage() {
           quote,
           tva_applicable: companyHasVat && tvaApplicable,
           transcript,
+          trade: trade || null,
         }),
       });
       // Anonymous capture: a save with no session asks for an email code, then
@@ -319,7 +326,31 @@ export default function NewQuotePage() {
             juste après — vous n'avez plus qu'à vérifier.
           </p>
 
-          <div className="mt-6 rounded-[26px] bg-white border border-line shadow-soft p-5 sm:p-7">
+          <div className="mt-6">
+            <div className="text-[11.5px] font-mono-label text-zinc-500 mb-2">MÉTIER</div>
+            <div className="flex flex-wrap gap-2">
+              {TRADES.map((t) => (
+                <button
+                  key={t.value}
+                  onClick={() => setTrade(t.value)}
+                  className={`px-3 py-1.5 rounded-full border text-[13.5px] transition ${
+                    trade === t.value
+                      ? "bg-dark text-white border-dark"
+                      : "bg-white border-line text-zinc-700 hover:bg-paper-2"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            {!trade && (
+              <p className="text-[12.5px] text-zinc-500 mt-2">
+                Choisissez votre métier pour activer la dictée.
+              </p>
+            )}
+          </div>
+
+          <div className="mt-5 rounded-[26px] bg-white border border-line shadow-soft p-5 sm:p-7">
             <div className="flex items-center justify-between">
               <div className="text-[11.5px] font-mono-label text-zinc-500">MICRO • FR</div>
               {status === "recording" && (
@@ -343,9 +374,9 @@ export default function NewQuotePage() {
                 ) : (
                   <button
                     onClick={startRecording}
-                    disabled={status === "loading"}
+                    disabled={status === "loading" || !trade}
                     aria-label="Démarrer l'enregistrement"
-                    className="w-20 h-20 rounded-full bg-brand text-white flex items-center justify-center shadow-[0_12px_30px_rgba(255,90,20,.33)] hover:bg-brand-dark transition disabled:opacity-50"
+                    className="w-20 h-20 rounded-full bg-brand text-white flex items-center justify-center shadow-[0_12px_30px_rgba(255,90,20,.33)] hover:bg-brand-dark transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Mic size={30} />
                   </button>
@@ -376,7 +407,7 @@ export default function NewQuotePage() {
               )}
             </div>
 
-            {status !== "recording" && status !== "loading" && (
+            {status !== "recording" && status !== "loading" && trade && (
               <label className="mt-4 flex items-center justify-center gap-2 text-[13px] text-zinc-600 cursor-pointer hover:text-black transition">
                 <Upload size={15} />
                 <span className="underline decoration-dotted">ou choisir un fichier audio</span>

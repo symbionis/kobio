@@ -27,6 +27,7 @@ export default async function SavedQuotePage({
         id={row.id}
         initialQuote={rowToQuote(row)}
         initialTranscript={row.transcript ?? ""}
+        trade={row.trade ?? null}
         clientId={row.client_id}
         sent={row.sent}
         tvaApplicable={row.tva_applicable}

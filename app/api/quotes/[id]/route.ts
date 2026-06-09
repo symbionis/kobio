@@ -11,6 +11,7 @@ interface UpdateBody {
   sent?: boolean;
   tva_applicable?: boolean;
   transcript?: string | null;
+  trade?: string | null;
 }
 
 /** PUT /api/quotes/[id] — update an existing quote (404 if it doesn't exist). */
@@ -42,6 +43,7 @@ export async function PUT(
       sent: body.sent ?? false,
       tva_applicable: body.tva_applicable ?? true,
       transcript: body.transcript ?? null,
+      trade: body.trade ?? null,
     });
     return NextResponse.json({ id: saved.id });
   } catch (err) {

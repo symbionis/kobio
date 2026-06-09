@@ -18,6 +18,8 @@ export interface SaveQuoteInput {
   tva_applicable: boolean;
   /** Source voice transcript; persisted when migration 0006 has been applied. */
   transcript?: string | null;
+  /** The trade (métier) active at dictation. */
+  trade?: string | null;
 }
 
 /**
@@ -37,6 +39,7 @@ export async function saveQuote(scope: OwnerScope, input: SaveQuoteInput): Promi
     review_notes: input.review_notes,
     sent: input.sent,
     tva_applicable: input.tva_applicable,
+    trade: input.trade ?? null,
     updated_at: new Date().toISOString(),
   };
   const row = { ...base, transcript: input.transcript ?? null };
@@ -80,6 +83,7 @@ export async function persistQuote(
     sent: boolean;
     tva_applicable: boolean;
     transcript?: string | null;
+    trade?: string | null;
   },
 ): Promise<QuoteRow> {
   const saved = await saveQuote(scope, {
@@ -93,6 +97,7 @@ export async function persistQuote(
     sent: opts.sent,
     tva_applicable: opts.tva_applicable,
     transcript: opts.transcript,
+    trade: opts.trade,
   });
   try {
     // override_log.owner_id is the parent quote's owner (= scope.ownerId).

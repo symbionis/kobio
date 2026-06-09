@@ -16,6 +16,8 @@ interface Props {
   id: string;
   initialQuote: Quote;
   initialTranscript: string;
+  /** The quote's trade (métier) — preserved on save and reused on reprocess. */
+  trade: string | null;
   clientId: string | null;
   sent: boolean;
   tvaApplicable: boolean;
@@ -33,6 +35,7 @@ export default function SavedQuoteEditor({
   id,
   initialQuote,
   initialTranscript,
+  trade,
   clientId,
   sent,
   tvaApplicable,
@@ -67,6 +70,7 @@ export default function SavedQuoteEditor({
           sent: isSent,
           tva_applicable: tva,
           transcript,
+          trade,
         }),
       });
       const data = (await res.json()) as { error?: string };
@@ -105,7 +109,7 @@ export default function SavedQuoteEditor({
       const res = await fetch("/api/quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript: text }),
+        body: JSON.stringify({ transcript: text, trade }),
       });
       const data = (await res.json()) as { quote?: Quote; error?: string };
       if (!res.ok || !data.quote) throw new Error(data.error ?? `Erreur ${res.status}`);
