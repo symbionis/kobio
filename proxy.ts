@@ -35,7 +35,22 @@ export async function proxy(request: NextRequest) {
 
   // IMPORTANT: do not run code between createServerClient and getUser() — and do
   // not remove getUser(); it is what refreshes the session cookie.
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Gate the persisted-data PAGES. Public: /, /new, /login, /auth/*. API routes
+  // are NOT redirected here — they return 401 themselves so fetch() can react
+  // (e.g. the save→OTP handoff). Capture the path in `next` for return-after-login.
+  const { pathname } = request.nextUrl;
+  const gated = ["/quotes", "/clients", "/settings", "/products"];
+  const isGatedPage = gated.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  if (!user && isGatedPage) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.search = `?next=${encodeURIComponent(pathname)}`;
+    return NextResponse.redirect(url);
+  }
 
   return response;
 }

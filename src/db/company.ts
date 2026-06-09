@@ -1,5 +1,4 @@
-import { db } from "./client";
-import { OWNER_ID } from "./owner";
+import type { OwnerScope } from "./auth";
 import type { CompanyRow } from "./types";
 
 export interface SaveCompanyInput {
@@ -15,11 +14,11 @@ export interface SaveCompanyInput {
 }
 
 /** The owner's single company profile, or null if not set yet. */
-export async function getCompany(): Promise<CompanyRow | null> {
-  const { data, error } = await db()
+export async function getCompany(scope: OwnerScope): Promise<CompanyRow | null> {
+  const { data, error } = await scope.supabase
     .from("company_profile")
     .select()
-    .eq("owner_id", OWNER_ID)
+    .eq("owner_id", scope.ownerId)
     .maybeSingle();
   if (error) throw new Error(`getCompany failed: ${error.message}`);
   return (data as CompanyRow) ?? null;
@@ -29,10 +28,10 @@ export async function getCompany(): Promise<CompanyRow | null> {
  * Upsert the owner's company profile (one per owner). Upserts on the owner_id
  * unique constraint — atomic, no read-then-write race.
  */
-export async function saveCompany(input: SaveCompanyInput): Promise<CompanyRow> {
+export async function saveCompany(scope: OwnerScope, input: SaveCompanyInput): Promise<CompanyRow> {
   if (!input.name.trim()) throw new Error("Company name is required.");
   const row = {
-    owner_id: OWNER_ID,
+    owner_id: scope.ownerId,
     name: input.name.trim(),
     address: input.address,
     postcode: input.postcode,
@@ -44,7 +43,7 @@ export async function saveCompany(input: SaveCompanyInput): Promise<CompanyRow> 
     logo_ref: input.logo_ref,
     updated_at: new Date().toISOString(),
   };
-  const { data, error } = await db()
+  const { data, error } = await scope.supabase
     .from("company_profile")
     .upsert(row, { onConflict: "owner_id" })
     .select()

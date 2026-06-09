@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Quote } from "../../src/quote/types";
+import AuthOtp from "../components/AuthOtp";
 import QuoteEditor from "../components/QuoteEditor";
 import TranscriptPanel from "../components/TranscriptPanel";
 
@@ -40,6 +41,7 @@ export default function NewQuotePage() {
   const [stubbed, setStubbed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
+  const [needAuth, setNeedAuth] = useState(false);
   const [companyHasVat, setCompanyHasVat] = useState(false);
   const [tvaApplicable, setTvaApplicable] = useState(true);
   const [seconds, setSeconds] = useState(0);
@@ -210,6 +212,12 @@ export default function NewQuotePage() {
           transcript,
         }),
       });
+      // Anonymous capture: a save with no session asks for an email code, then
+      // resumes (the quote is still in memory). Not an error.
+      if (res.status === 401) {
+        setNeedAuth(true);
+        return;
+      }
       const data = (await res.json()) as { id?: string; error?: string };
       if (!res.ok || !data.id) throw new Error(data.error ?? `Erreur ${res.status}`);
       router.push(`/quotes/${data.id}`);
@@ -270,6 +278,30 @@ export default function NewQuotePage() {
             reprocessing={reprocessing}
           />
         </div>
+
+        {needAuth && (
+          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+            <div className="w-full max-w-md rounded-[24px] bg-white border border-line shadow-soft p-6">
+              <div className="flex items-center justify-between mb-1">
+                <h2 className="font-display text-[24px] tracking-tight">Enregistrer votre devis</h2>
+                <button
+                  onClick={() => setNeedAuth(false)}
+                  className="text-zinc-400 hover:text-black transition text-[20px] leading-none"
+                  aria-label="Fermer"
+                >
+                  ×
+                </button>
+              </div>
+              <AuthOtp
+                reason="Entrez votre e-mail pour enregistrer et envoyer ce devis — un code vous est envoyé."
+                onAuthed={() => {
+                  setNeedAuth(false);
+                  void saveToLibrary();
+                }}
+              />
+            </div>
+          </div>
+        )}
       </main>
     );
   }

@@ -1,10 +1,14 @@
+import { redirect } from "next/navigation";
+import { requireOwner } from "../../src/db/auth";
 import { getCompany } from "../../src/db/company";
 import CompanyForm from "./CompanyForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const company = await getCompany();
+  const scope = await requireOwner().catch(() => null);
+  if (!scope) redirect("/login?next=/settings");
+  const company = await getCompany(scope);
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-7 lg:px-10 py-8 sm:py-12">
       <h1 className="font-display text-[38px] leading-tight tracking-tight">Réglages</h1>

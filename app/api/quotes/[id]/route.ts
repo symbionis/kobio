@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { UnauthorizedError, requireOwner } from "../../../../src/db/auth";
 import { getQuote, persistQuote } from "../../../../src/db/quotes";
 import type { Quote } from "../../../../src/quote/types";
 
@@ -30,11 +31,12 @@ export async function PUT(
   }
 
   try {
-    // Update, not upsert-by-id: a PUT to a non-existent id is a 404, not a create.
-    const existing = await getQuote(id);
+    const scope = await requireOwner();
+    // Update, not upsert-by-id: a PUT to a non-existent (or non-owned) id is 404.
+    const existing = await getQuote(scope, id);
     if (!existing) return NextResponse.json({ error: "Devis introuvable." }, { status: 404 });
 
-    const saved = await persistQuote(body.quote, {
+    const saved = await persistQuote(scope, body.quote, {
       id,
       client_id: body.client_id ?? null,
       sent: body.sent ?? false,
@@ -43,6 +45,9 @@ export async function PUT(
     });
     return NextResponse.json({ id: saved.id });
   } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      return NextResponse.json({ error: "Connexion requise." }, { status: 401 });
+    }
     const message = err instanceof Error ? err.message : "Erreur d'enregistrement.";
     return NextResponse.json({ error: message }, { status: 500 });
   }

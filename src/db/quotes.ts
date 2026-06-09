@@ -1,7 +1,6 @@
 import type { Contact, Line, Quote } from "../quote/types";
-import { db } from "./client";
+import type { OwnerScope } from "./auth";
 import { logOverrides } from "./overrides";
-import { OWNER_ID } from "./owner";
 import type { QuoteRow } from "./types";
 
 const EMPTY_CONTACT: Contact = { spoken_name: "", match: null, action: "match_or_create" };
@@ -21,11 +20,15 @@ export interface SaveQuoteInput {
   transcript?: string | null;
 }
 
-/** Create or update a quote. The owner is always the single implicit owner. */
-export async function saveQuote(input: SaveQuoteInput): Promise<QuoteRow> {
+/**
+ * Create or update a quote, owned by the signed-in user. RLS enforces the owner
+ * boundary; `owner_id` is set from the session (never a request body) and the
+ * explicit filter is defense-in-depth.
+ */
+export async function saveQuote(scope: OwnerScope, input: SaveQuoteInput): Promise<QuoteRow> {
   const base = {
     ...(input.id ? { id: input.id } : {}),
-    owner_id: OWNER_ID,
+    owner_id: scope.ownerId,
     client_id: input.client_id,
     title: input.title,
     contact: input.contact,
@@ -38,11 +41,11 @@ export async function saveQuote(input: SaveQuoteInput): Promise<QuoteRow> {
   };
   const row = { ...base, transcript: input.transcript ?? null };
 
-  let { data, error } = await db().from("quotes").upsert(row).select().single();
+  let { data, error } = await scope.supabase.from("quotes").upsert(row).select().single();
   // Self-healing: before migration 0006 the transcript column doesn't exist and
   // PostgREST rejects the unknown key — retry without it so saves never break.
   if (error && /transcript/i.test(error.message)) {
-    ({ data, error } = await db().from("quotes").upsert(base).select().single());
+    ({ data, error } = await scope.supabase.from("quotes").upsert(base).select().single());
   }
   if (error) throw new Error(`saveQuote failed: ${error.message}`);
   return data as QuoteRow;
@@ -69,6 +72,7 @@ export function rowToQuote(row: QuoteRow): Quote {
  * both routes to call.
  */
 export async function persistQuote(
+  scope: OwnerScope,
   quote: Quote,
   opts: {
     id?: string;
@@ -78,7 +82,7 @@ export async function persistQuote(
     transcript?: string | null;
   },
 ): Promise<QuoteRow> {
-  const saved = await saveQuote({
+  const saved = await saveQuote(scope, {
     id: opts.id,
     title: quote.title,
     contact: quote.contact,
@@ -91,31 +95,32 @@ export async function persistQuote(
     transcript: opts.transcript,
   });
   try {
-    await logOverrides(saved.id, quote.lines);
+    // override_log.owner_id is the parent quote's owner (= scope.ownerId).
+    await logOverrides(scope, saved.id, quote.lines);
   } catch (err) {
     console.error("logOverrides failed (non-fatal):", err instanceof Error ? err.message : err);
   }
   return saved;
 }
 
-/** Fetch one quote by id, scoped to the owner. Null when not found. */
-export async function getQuote(id: string): Promise<QuoteRow | null> {
-  const { data, error } = await db()
+/** Fetch one quote by id, scoped to the owner (RLS + explicit filter). Null when not found. */
+export async function getQuote(scope: OwnerScope, id: string): Promise<QuoteRow | null> {
+  const { data, error } = await scope.supabase
     .from("quotes")
     .select()
     .eq("id", id)
-    .eq("owner_id", OWNER_ID)
+    .eq("owner_id", scope.ownerId)
     .maybeSingle();
   if (error) throw new Error(`getQuote failed: ${error.message}`);
   return (data as QuoteRow) ?? null;
 }
 
 /** List the owner's quotes, most recently updated first. */
-export async function listQuotes(): Promise<QuoteRow[]> {
-  const { data, error } = await db()
+export async function listQuotes(scope: OwnerScope): Promise<QuoteRow[]> {
+  const { data, error } = await scope.supabase
     .from("quotes")
     .select()
-    .eq("owner_id", OWNER_ID)
+    .eq("owner_id", scope.ownerId)
     .order("updated_at", { ascending: false });
   if (error) throw new Error(`listQuotes failed: ${error.message}`);
   return (data as QuoteRow[]) ?? [];

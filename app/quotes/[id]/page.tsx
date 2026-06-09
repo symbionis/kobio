@@ -1,4 +1,5 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { requireOwner } from "../../../src/db/auth";
 import { listClients } from "../../../src/db/clients";
 import { getCompany } from "../../../src/db/company";
 import { getQuote, rowToQuote } from "../../../src/db/quotes";
@@ -13,10 +14,12 @@ export default async function SavedQuotePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const row = await getQuote(id);
+  const scope = await requireOwner().catch(() => null);
+  if (!scope) redirect(`/login?next=/quotes/${id}`);
+  const row = await getQuote(scope, id);
   if (!row) notFound();
 
-  const [clients, company] = await Promise.all([listClients(), getCompany()]);
+  const [clients, company] = await Promise.all([listClients(scope), getCompany(scope)]);
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-7 lg:px-10 py-8 sm:py-12">

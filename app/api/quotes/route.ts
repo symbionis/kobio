@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { UnauthorizedError, requireOwner } from "../../../src/db/auth";
 import { persistQuote } from "../../../src/db/quotes";
 import type { Quote } from "../../../src/quote/types";
 
@@ -25,7 +26,8 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const saved = await persistQuote(body.quote, {
+    const scope = await requireOwner();
+    const saved = await persistQuote(scope, body.quote, {
       client_id: body.client_id ?? null,
       sent: body.sent ?? false,
       tva_applicable: body.tva_applicable ?? true,
@@ -33,6 +35,9 @@ export async function POST(request: Request): Promise<Response> {
     });
     return NextResponse.json({ id: saved.id }, { status: 201 });
   } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      return NextResponse.json({ error: "Connexion requise." }, { status: 401 });
+    }
     const message = err instanceof Error ? err.message : "Erreur d'enregistrement.";
     return NextResponse.json({ error: message }, { status: 500 });
   }

@@ -1,25 +1,27 @@
 import { describe, expect, it, vi } from "vitest";
+import type { OwnerScope } from "./auth";
 import type { Quote } from "../quote/types";
 import type { QuoteRow } from "./types";
 
-// Mock the Supabase client so saveQuote resolves without a real DB, and the
-// override log so we can drive its success/failure.
-vi.mock("./client", () => ({
-  db: () => ({
-    from: () => ({
-      upsert: () => ({
-        select: () => ({ single: async () => ({ data: { id: "saved-1" }, error: null }) }),
-      }),
-    }),
-  }),
-  hasSupabaseConfig: () => true,
-}));
+// Mock the override log so we can drive its success/failure.
 vi.mock("./overrides", () => ({ logOverrides: vi.fn() }));
 
 import { logOverrides } from "./overrides";
 import { persistQuote, rowToQuote } from "./quotes";
 
 const mockedLogOverrides = vi.mocked(logOverrides);
+
+// A fake owner scope whose user client resolves a saved row without a real DB.
+const scope = {
+  ownerId: "o",
+  supabase: {
+    from: () => ({
+      upsert: () => ({
+        select: () => ({ single: async () => ({ data: { id: "saved-1" }, error: null }) }),
+      }),
+    }),
+  },
+} as unknown as OwnerScope;
 
 function row(overrides: Partial<QuoteRow> = {}): QuoteRow {
   return {
@@ -74,7 +76,7 @@ describe("persistQuote", () => {
   it("returns the saved row even when logOverrides throws (best-effort, no duplicate-on-retry)", async () => {
     mockedLogOverrides.mockRejectedValueOnce(new Error("boom"));
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const saved = await persistQuote(quote, { client_id: null, sent: false, tva_applicable: true });
+    const saved = await persistQuote(scope, quote, { client_id: null, sent: false, tva_applicable: true });
     expect(saved.id).toBe("saved-1");
     expect(errSpy).toHaveBeenCalled();
     errSpy.mockRestore();
@@ -82,7 +84,7 @@ describe("persistQuote", () => {
 
   it("succeeds normally when logOverrides resolves", async () => {
     mockedLogOverrides.mockResolvedValueOnce(undefined);
-    const saved = await persistQuote(quote, { client_id: "c1", sent: true, tva_applicable: false });
+    const saved = await persistQuote(scope, quote, { client_id: "c1", sent: true, tva_applicable: false });
     expect(saved.id).toBe("saved-1");
   });
 });
