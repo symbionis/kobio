@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+/* ---- Kobio design tokens ----
+   Warm-paper + orange palette ported from the reference design. Exposed as
+   Tailwind theme colours so `bg-paper`, `border-line`, `text-brand` etc. work. */
+@theme {
+  --color-paper: #f8f4ef;
+  --color-paper-2: #fcf9f4;
+  --color-paper-3: #fffbf5;
+  --color-ink: #1b1d21;
+  --color-dark: #17191d;
+  --color-line: #eadfd0;
+  --color-line-2: #e6ddd0;
+  --color-brand: #ff5a14;
+  --color-brand-dark: #ef4d09;
+  --color-rust: #b97a49;
+
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-fragment), ui-monospace, monospace;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Display + mono helpers — match the reference's `.fraunces` / `.mono`. */
+.font-display {
+  font-family: var(--font-display);
+}
+.font-mono-label {
+  font-family: var(--font-mono);
+}
+
+/* Soft elevation used on every card. */
+.shadow-soft {
+  box-shadow: 0 8px 40px rgba(32, 26, 14, 0.07), 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Dashed dropzone border for the mic capture area. */
+.dashed-border {
+  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='20' ry='20' stroke='%23C9BDA9' stroke-width='2' stroke-dasharray='8%2c 8' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+}
+
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
