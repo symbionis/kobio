@@ -1,13 +1,16 @@
 import { Package } from "lucide-react";
-import { loadCatalog } from "../../src/catalog";
+import { redirect } from "next/navigation";
+import { listArticles } from "../../src/db/articles";
+import { requireOwner } from "../../src/db/auth";
 import { formatCHF as CHF } from "../../src/quote/totals";
 
-// The catalog snapshot is read from disk per request.
+// Reads the owner's articles from the DB per request.
 export const dynamic = "force-dynamic";
 
 export default async function ProductsPage() {
-  const catalog = await loadCatalog();
-  const articles = [...catalog].sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  const scope = await requireOwner().catch(() => null);
+  if (!scope) redirect("/login?next=/products");
+  const articles = await listArticles(scope);
 
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-7 lg:px-10 py-8 sm:py-12">
@@ -28,9 +31,9 @@ export default async function ProductsPage() {
       {articles.length === 0 ? (
         <div className="mt-7 rounded-[24px] bg-white border border-line shadow-soft p-10 text-center">
           <Package size={30} className="mx-auto text-zinc-400" />
-          <div className="mt-3 text-[17px] font-[700]">Aucun article</div>
+          <div className="mt-3 text-[17px] font-[700]">Catalogue vide</div>
           <div className="text-zinc-600 mt-1">
-            Le catalogue se synchronise depuis Bexio. Connectez-le dans Réglages.
+            Vos articles apparaîtront ici. L'import depuis Bexio arrive bientôt.
           </div>
         </div>
       ) : (
