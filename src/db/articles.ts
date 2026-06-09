@@ -12,9 +12,11 @@ export interface SaveArticleInput {
 }
 
 /**
- * List the owner's active articles, optionally scoped to a trade. The trade
- * filter narrows the LLM candidate set at dictation (KTD-H) — it never changes
- * the spoken-price rule. RLS also enforces the owner boundary.
+ * List the owner's active articles, optionally scoped to a trade. When a trade
+ * is given, untagged articles (trade IS NULL) are still included — a seeded
+ * catalog (all NULL) stays available for any trade, and tagging only *adds*
+ * specificity. The filter narrows the LLM candidate set (KTD-H); it never
+ * changes the spoken-price rule. RLS also enforces the owner boundary.
  */
 export async function listArticles(scope: OwnerScope, trade?: string | null): Promise<ArticleRow[]> {
   let query = scope.supabase
@@ -22,7 +24,7 @@ export async function listArticles(scope: OwnerScope, trade?: string | null): Pr
     .select()
     .eq("owner_id", scope.ownerId)
     .eq("archived", false);
-  if (trade) query = query.eq("trade", trade);
+  if (trade) query = query.or(`trade.eq.${trade},trade.is.null`);
   const { data, error } = await query.order("name", { ascending: true });
   if (error) throw new Error(`listArticles failed: ${error.message}`);
   return (data as ArticleRow[]) ?? [];

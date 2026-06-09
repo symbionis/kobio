@@ -1,7 +1,6 @@
 import { FileText, Mic } from "lucide-react";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { requireOwner } from "../../src/db/auth";
+import { requireOwnerForPage } from "../../src/db/auth";
 import { listQuotes } from "../../src/db/quotes";
 import { deriveStatus, type QuoteStatus } from "../../src/quote/status";
 import { formatCHF as CHF, totalsFromLines } from "../../src/quote/totals";
@@ -20,8 +19,7 @@ function statusClasses(s: QuoteStatus): string {
 }
 
 export default async function LibraryPage() {
-  const scope = await requireOwner().catch(() => null);
-  if (!scope) redirect("/login?next=/quotes");
+  const scope = await requireOwnerForPage("/quotes");
   const rows = await listQuotes(scope);
 
   return (

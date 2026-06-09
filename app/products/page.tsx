@@ -1,15 +1,13 @@
 import { Package } from "lucide-react";
-import { redirect } from "next/navigation";
 import { listArticles } from "../../src/db/articles";
-import { requireOwner } from "../../src/db/auth";
+import { requireOwnerForPage } from "../../src/db/auth";
 import { formatCHF as CHF } from "../../src/quote/totals";
 
 // Reads the owner's articles from the DB per request.
 export const dynamic = "force-dynamic";
 
 export default async function ProductsPage() {
-  const scope = await requireOwner().catch(() => null);
-  if (!scope) redirect("/login?next=/products");
+  const scope = await requireOwnerForPage("/products");
   const articles = await listArticles(scope);
 
   return (

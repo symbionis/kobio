@@ -1,3 +1,4 @@
+import { asTrade } from "../quote/trades";
 import type { Contact, Line, Quote } from "../quote/types";
 import type { OwnerScope } from "./auth";
 import { logOverrides } from "./overrides";
@@ -39,7 +40,8 @@ export async function saveQuote(scope: OwnerScope, input: SaveQuoteInput): Promi
     review_notes: input.review_notes,
     sent: input.sent,
     tva_applicable: input.tva_applicable,
-    trade: input.trade ?? null,
+    // Validate centrally so no save path can persist an unknown trade value.
+    trade: asTrade(input.trade),
     updated_at: new Date().toISOString(),
   };
   const row = { ...base, transcript: input.transcript ?? null };

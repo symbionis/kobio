@@ -6,9 +6,9 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  * claim/backfill and the catalog seed (KTD-E). Owner-facing reads and writes go
  * through the request-scoped user client in `./supabase/server.ts` instead.
  *
- * `app/**` must never import this module — only `scripts/**` and explicitly
- * admin server code (e.g. `src/db/claim.ts`). The key lives in .env (gitignored)
- * and is never sent to the browser.
+ * `app/**` must never import this module — only `scripts/**` (e.g.
+ * `scripts/claim-owner.ts`, `scripts/seed-articles.ts`) and `src/db/seed.ts`.
+ * The key lives in .env (gitignored) and is never sent to the browser.
  *
  * Created per call (no module-global cache) so it cannot leak request-scoped
  * state across Fluid Compute invocations.
@@ -35,14 +35,6 @@ export function adminClient(): SupabaseClient {
     },
   });
 }
-
-/**
- * @deprecated Transitional alias for the service-role client. The data layer is
- * being moved onto the request-scoped user client (plan U5); until then existing
- * CRUD modules keep calling `db()`. New code should use `userClient()` for owner
- * data or `adminClient()` for admin/seed paths — not this.
- */
-export const db = adminClient;
 
 export function hasSupabaseConfig(): boolean {
   return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);

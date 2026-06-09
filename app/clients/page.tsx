@@ -1,13 +1,11 @@
-import { redirect } from "next/navigation";
-import { requireOwner } from "../../src/db/auth";
+import { requireOwnerForPage } from "../../src/db/auth";
 import { listClients } from "../../src/db/clients";
 import ClientManager from "./ClientManager";
 
 export const dynamic = "force-dynamic";
 
 export default async function ClientsPage() {
-  const scope = await requireOwner().catch(() => null);
-  if (!scope) redirect("/login?next=/clients");
+  const scope = await requireOwnerForPage("/clients");
   const clients = await listClients(scope);
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-7 lg:px-10 py-8 sm:py-12">

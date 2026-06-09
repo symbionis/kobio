@@ -3,9 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 
 /**
  * Refreshes the Supabase auth session on every request and keeps the cookies in
- * sync (the @supabase/ssr proxy pattern). This unit (U1) does session refresh
- * only — route gating/redirects are added in U3. If the browser-safe auth env
- * isn't configured, it passes through untouched so the app keeps running.
+ * sync (the @supabase/ssr pattern), then gates the persisted-data pages —
+ * anonymous requests to a gated route are redirected to /login?next=… (API
+ * routes are left to return their own 401). If the browser-safe auth env isn't
+ * configured, it passes through untouched so the app keeps running.
  *
  * Next 16 "proxy" convention (the renamed successor to `middleware`).
  */
