@@ -298,6 +298,7 @@ Phase A and Phase B ship in the same release — RLS without the user client (or
 ## Open Questions (execution-time)
 
 - **Custom SMTP for production email** (sender domain, SPF/DKIM, provider): required before public launch so OTP emails aren't rate-limited or spam-filtered. Built-in sender is fine for dev/staging.
+- **Email templates must send the code, not a magic link.** Supabase defaults render `{{ .ConfirmationURL }}`; a *new* email is routed through "Confirm sign up", a returning one through "Magic link or OTP". For the in-app code flow, put `{{ .Token }}` in the relevant template(s). Simplest (and what's configured): turn OFF "Confirm email" (the OTP itself proves inbox ownership) so all sign-ins use one "Magic link or OTP" template carrying `{{ .Token }}`. Confirmed working 2026-06-09.
 - **Rate-limit thresholds** for `POST /api/quote` (requests/IP/window, per-session cap): pick concrete numbers at execution.
 - **`getClaims()` vs `getUser()` for access control:** confirm whether `getClaims()` verifies the JWT signature server-side; use the authoritative call for `currentOwnerId()` so the written `owner_id` always matches the RLS-evaluated `auth.uid()`.
 - **Articles trade backfill:** the snapshot has no trade tags; for the pilot, stamp seeded articles with the company trade or leave null (fallback-to-all). Affects whether U10's trade filtering does anything on day one.
