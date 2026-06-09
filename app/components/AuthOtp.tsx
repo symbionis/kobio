@@ -50,11 +50,15 @@ export default function AuthOtp({ onAuthed, reason }: AuthOtpProps) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { error } = await supabase.auth.verifyOtp({
-      email: email.trim(),
-      token: code.trim(),
-      type: "email",
-    });
+    const addr = email.trim();
+    const token = code.trim();
+    // A new email arrives via the "Confirm signup" template (type "signup");
+    // a returning email via "Magic Link" (type "email"). Try sign-in first,
+    // fall back to signup, so the same code input works for both.
+    let { error } = await supabase.auth.verifyOtp({ email: addr, token, type: "email" });
+    if (error) {
+      ({ error } = await supabase.auth.verifyOtp({ email: addr, token, type: "signup" }));
+    }
     setBusy(false);
     if (error) {
       setError(
