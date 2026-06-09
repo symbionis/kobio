@@ -1,7 +1,7 @@
 ---
 date: 2026-06-09
 type: feat
-status: active
+status: completed
 origin: docs/brainstorms/2026-06-08-standalone-quoting-mvp-requirements.md
 depth: deep
 deepened: 2026-06-09
