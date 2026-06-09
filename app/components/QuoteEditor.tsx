@@ -98,13 +98,16 @@ export default function QuoteEditor({
 
         <section className="rounded-[24px] bg-white shadow-soft border border-line p-5 sm:p-6">
           <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div>
-              <div className="text-[11.5px] font-mono-label text-zinc-500 mb-1">DEVIS</div>
-              <h2 className="font-display text-[26px] leading-tight tracking-tight">
-                {quote.title || "Devis sans titre"}
-              </h2>
+            <div className="flex-1 min-w-[240px]">
+              <label className="text-[11.5px] font-mono-label text-zinc-500 mb-1 block">DEVIS</label>
+              <input
+                className="font-display text-[26px] leading-tight tracking-tight w-full bg-transparent outline-none border-b border-transparent focus:border-zinc-300 pb-0.5"
+                value={quote.title}
+                onChange={(e) => onChange({ ...quote, title: e.target.value })}
+                placeholder="Devis sans titre"
+              />
               <div className="text-[14px] text-zinc-600 mt-1">
-                Contact : <span className="font-[600]">{quote.contact.spoken_name || "—"}</span>
+                Contact dicté : <span className="font-[600]">{quote.contact.spoken_name || "—"}</span>
               </div>
             </div>
             <span

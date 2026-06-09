@@ -45,6 +45,10 @@ export default function SavedQuoteEditor({
   const [quote, setQuote] = useState<Quote>(initialQuote);
   const [transcript, setTranscript] = useState<string>(initialTranscript);
   const [client, setClient] = useState<string>(clientId ?? "");
+  const [clientList, setClientList] = useState<ClientOption[]>(clients);
+  const [creatingClient, setCreatingClient] = useState(false);
+  const [newClientName, setNewClientName] = useState(initialQuote.contact.spoken_name ?? "");
+  const [clientBusy, setClientBusy] = useState(false);
   const [isSent, setIsSent] = useState<boolean>(sent);
   const [tva, setTva] = useState<boolean>(tvaApplicable);
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -144,22 +148,107 @@ export default function SavedQuoteEditor({
     }
   }
 
+  // Create a client on the fly (name only — enrich later in Clients), then attach
+  // it. Prefilled from the dictated contact so the spoken name becomes the client.
+  async function createClient() {
+    const name = newClientName.trim();
+    if (!name) return;
+    setClientBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = (await res.json()) as { client?: { id: string; name: string }; error?: string };
+      if (!res.ok || !data.client) throw new Error(data.error ?? `Erreur ${res.status}`);
+      const created = { id: data.client.id, name: data.client.name };
+      setClientList((list) =>
+        [...list, created].sort((a, b) => a.name.localeCompare(b.name, "fr")),
+      );
+      setClient(created.id);
+      setCreatingClient(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Échec de la création du client.");
+    } finally {
+      setClientBusy(false);
+    }
+  }
+
   const selectInput =
     "w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-[14px] bg-white outline-none focus:ring-2 focus:ring-[#ffbb94]";
 
   const controls = (
     <>
-      <label className="flex flex-col gap-1 text-[12px] font-mono-label text-zinc-500">
-        CLIENT
-        <select value={client} onChange={(e) => setClient(e.target.value)} className={selectInput}>
-          <option value="">— Aucun —</option>
-          {clients.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="flex flex-col gap-1.5">
+        <label className="flex flex-col gap-1 text-[12px] font-mono-label text-zinc-500">
+          CLIENT
+          <select
+            value={client}
+            onChange={(e) => {
+              if (e.target.value === "__new__") {
+                setNewClientName(quote.contact.spoken_name ?? "");
+                setCreatingClient(true);
+              } else {
+                setClient(e.target.value);
+              }
+            }}
+            className={selectInput}
+          >
+            <option value="">— Aucun —</option>
+            {clientList.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+            <option value="__new__">+ Nouveau client…</option>
+          </select>
+        </label>
+
+        {/* Dictated contact → client shortcut. */}
+        {!client && !creatingClient && quote.contact.spoken_name && (
+          <button
+            onClick={() => {
+              setNewClientName(quote.contact.spoken_name);
+              setCreatingClient(true);
+            }}
+            className="text-left text-[12.5px] text-brand hover:text-brand-dark transition"
+          >
+            + Créer « {quote.contact.spoken_name} » comme client
+          </button>
+        )}
+
+        {creatingClient && (
+          <div className="rounded-xl border border-line bg-paper-2 p-3 flex flex-col gap-2">
+            <input
+              autoFocus
+              value={newClientName}
+              onChange={(e) => setNewClientName(e.target.value)}
+              placeholder="Nom du client"
+              className={selectInput}
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={createClient}
+                disabled={clientBusy || !newClientName.trim()}
+                className="flex-1 rounded-xl bg-dark text-white py-2 text-[13px] font-[650] hover:bg-black transition disabled:opacity-50"
+              >
+                {clientBusy ? "Création…" : "Créer + attacher"}
+              </button>
+              <button
+                onClick={() => setCreatingClient(false)}
+                className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-[13px] hover:bg-zinc-50 transition"
+              >
+                Annuler
+              </button>
+            </div>
+            <p className="text-[11.5px] text-zinc-500">
+              Complétez l'adresse plus tard dans Clients.
+            </p>
+          </div>
+        )}
+      </div>
 
       <label className="flex items-center gap-2 text-[14px] text-zinc-700 cursor-pointer">
         <input
