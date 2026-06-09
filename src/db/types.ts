@@ -19,6 +19,8 @@ export interface CompanyRow {
   phone: string | null;
   vat_number: string | null;
   logo_ref: string | null;
+  /** The builder's single trade (métier). Null until set in Réglages. */
+  trade: string | null;
 }
 
 export interface ClientRow {
@@ -46,15 +48,33 @@ export interface QuoteRow {
   tva_applicable: boolean;
   /** Source voice transcript. Null on rows created before migration 0006. */
   transcript: string | null;
+  /** The trade (métier) active at dictation; scopes catalog candidates. */
+  trade: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface OverrideRow {
   id: string;
+  owner_id: string;
   quote_id: string;
   line_index: number;
   spoken_rate: number;
   candidate_price: number;
   created_at: string;
+}
+
+export interface ArticleRow {
+  id: string;
+  owner_id: string;
+  /** Link back to a Bexio article; null for Kobio-created articles. */
+  bexio_article_id: number | null;
+  code: string | null;
+  name: string;
+  price: number | null;
+  unit: string | null;
+  trade: string | null;
+  archived: boolean;
+  created_at: string;
+  updated_at: string;
 }

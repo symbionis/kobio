@@ -36,6 +36,7 @@ function row(overrides: Partial<QuoteRow> = {}): QuoteRow {
     sent: false,
     tva_applicable: true,
     transcript: null,
+    trade: null,
     created_at: "",
     updated_at: "",
     ...overrides,
