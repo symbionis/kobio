@@ -12,3 +12,10 @@ export function browserClient() {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
   );
 }
+
+/** True when the browser-safe auth env is present (inlined into the client bundle). */
+export function hasBrowserAuthConfig(): boolean {
+  return Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+  );
+}
