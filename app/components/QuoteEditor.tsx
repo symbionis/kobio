@@ -1,7 +1,7 @@
 "use client";
 
-import { AlertTriangle, Check, Save } from "lucide-react";
-import type { ReactNode } from "react";
+import { AlertTriangle, Check, Pencil, Save } from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { round2 } from "../../src/quote/compute";
 import { parseNum } from "../../src/quote/input";
 import { deriveStatus } from "../../src/quote/status";
@@ -43,6 +43,8 @@ export default function QuoteEditor({
   vat,
   summaryExtras,
 }: QuoteEditorProps) {
+  const [editingTitle, setEditingTitle] = useState(false);
+
   function patchLine(index: number, next: Line) {
     onChange({ ...quote, lines: quote.lines.map((l, i) => (i === index ? next : l)) });
   }
@@ -99,13 +101,41 @@ export default function QuoteEditor({
         <section className="rounded-[24px] bg-white shadow-soft border border-line p-5 sm:p-6">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="flex-1 min-w-[240px]">
-              <label className="text-[11.5px] font-mono-label text-zinc-500 mb-1 block">DEVIS</label>
-              <input
-                className="font-display text-[26px] leading-tight tracking-tight w-full bg-transparent outline-none border-b border-transparent focus:border-zinc-300 pb-0.5"
-                value={quote.title}
-                onChange={(e) => onChange({ ...quote, title: e.target.value })}
-                placeholder="Devis sans titre"
-              />
+              <div className="text-[11.5px] font-mono-label text-zinc-500 mb-1">DEVIS</div>
+              {editingTitle ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    autoFocus
+                    className="font-display text-[26px] leading-tight tracking-tight flex-1 min-w-0 bg-paper-2 border border-line rounded-lg px-2 py-0.5 outline-none focus:ring-2 focus:ring-[#ffbb94]"
+                    value={quote.title}
+                    onChange={(e) => onChange({ ...quote, title: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") setEditingTitle(false);
+                    }}
+                    onBlur={() => setEditingTitle(false)}
+                    placeholder="Devis sans titre"
+                  />
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setEditingTitle(false)}
+                    className="inline-flex items-center gap-1 text-[13px] font-[600] text-emerald-700 hover:text-emerald-800 transition"
+                  >
+                    <Check size={15} /> OK
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="font-display text-[26px] leading-tight tracking-tight">
+                    {quote.title || "Devis sans titre"}
+                  </h2>
+                  <button
+                    onClick={() => setEditingTitle(true)}
+                    className="inline-flex items-center gap-1 text-[12.5px] font-[600] text-zinc-500 hover:text-black border border-zinc-300 rounded-full px-2.5 py-1 transition"
+                  >
+                    <Pencil size={13} /> Modifier
+                  </button>
+                </div>
+              )}
               <div className="text-[14px] text-zinc-600 mt-1">
                 Contact dicté : <span className="font-[600]">{quote.contact.spoken_name || "—"}</span>
               </div>
