@@ -3,10 +3,12 @@
 import { useRouter } from "next/navigation";
 import { type ChangeEvent, type FormEvent, useState } from "react";
 import type { CompanyRow } from "../../src/db/types";
+import { TRADES } from "../../src/quote/trades";
 
 export default function CompanyForm({ initial }: { initial: CompanyRow | null }) {
   const router = useRouter();
   const [name, setName] = useState(initial?.name ?? "");
+  const [trade, setTrade] = useState(initial?.trade ?? "");
   const [address, setAddress] = useState(initial?.address ?? "");
   const [postcode, setPostcode] = useState(initial?.postcode ?? "");
   const [city, setCity] = useState(initial?.city ?? "");
@@ -51,6 +53,7 @@ export default function CompanyForm({ initial }: { initial: CompanyRow | null })
           phone: phone || null,
           vat_number: vat || null,
           logo_ref: logo,
+          trade: trade || null,
         }),
       });
       const data = (await res.json()) as { error?: string };
@@ -75,6 +78,17 @@ export default function CompanyForm({ initial }: { initial: CompanyRow | null })
         <label className={field}>
           Nom de l'entreprise
           <input className={input} value={name} onChange={(e) => setName(e.target.value)} required />
+        </label>
+        <label className={field}>
+          Métier
+          <select className={input} value={trade} onChange={(e) => setTrade(e.target.value)}>
+            <option value="">— Choisir —</option>
+            {TRADES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label className={field}>
           Adresse

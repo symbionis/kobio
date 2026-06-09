@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { UnauthorizedError, getOptionalOwner, requireOwner } from "../../../src/db/auth";
 import { getCompany, saveCompany } from "../../../src/db/company";
+import { asTrade } from "../../../src/quote/trades";
 
 export const runtime = "nodejs";
 
@@ -26,6 +27,7 @@ interface CompanyBody {
   phone?: string | null;
   vat_number?: string | null;
   logo_ref?: string | null;
+  trade?: string | null;
 }
 
 /** POST /api/company — upsert the owner's single company profile. */
@@ -43,6 +45,7 @@ export async function POST(request: Request): Promise<Response> {
       phone: b.phone ?? null,
       vat_number: b.vat_number ?? null,
       logo_ref: b.logo_ref ?? null,
+      trade: asTrade(b.trade),
     });
     return NextResponse.json({ company: saved });
   } catch (err) {

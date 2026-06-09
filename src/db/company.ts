@@ -11,6 +11,7 @@ export interface SaveCompanyInput {
   phone: string | null;
   vat_number: string | null;
   logo_ref: string | null;
+  trade: string | null;
 }
 
 /** The owner's single company profile, or null if not set yet. */
@@ -41,6 +42,7 @@ export async function saveCompany(scope: OwnerScope, input: SaveCompanyInput): P
     phone: input.phone,
     vat_number: input.vat_number,
     logo_ref: input.logo_ref,
+    trade: input.trade,
     updated_at: new Date().toISOString(),
   };
   const { data, error } = await scope.supabase
