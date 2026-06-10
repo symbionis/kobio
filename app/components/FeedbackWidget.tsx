@@ -1,23 +1,41 @@
 "use client";
 
 import { Check, MessageSquare, Mic, Square, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { browserClient, hasBrowserAuthConfig } from "../../src/db/supabase/browser";
 
 type Status = "idle" | "recording" | "loading" | "thanks" | "error";
 
 /**
- * Persistent feedback affordance: a floating button bottom-right on every page.
- * Tap → a small panel; record a voice note, stop, and it transcribes + posts to
- * Slack, then thanks the user by name. No transcript shown, no edit. Mirrors the
- * AddressDictation recorder (tap/stop, no waveform/wake lock).
+ * Persistent feedback affordance: a floating button centred at the bottom of
+ * every page. Tap → a small panel; record a voice note, stop, and it transcribes
+ * + posts to Slack, then thanks the user by name. No transcript shown, no edit.
+ *
+ * Navy (not brand orange) so it reads as a distinct utility, not a second copy
+ * of the primary Dicter action. Icon-only for signed-out visitors (keeps the
+ * marketing pages clean); expands to a labelled pill once signed in, where
+ * builders are the ones with feedback to give. Bounces occasionally to stay
+ * noticed.
  */
 export default function FeedbackWidget() {
   const [open, setOpen] = useState(false);
+  const [authed, setAuthed] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [thanksName, setThanksName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+
+  // Track auth so the button can expand to its label only for signed-in users.
+  useEffect(() => {
+    if (!hasBrowserAuthConfig()) return;
+    const supabase = browserClient();
+    supabase.auth.getUser().then(({ data }) => setAuthed(!!data.user));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) =>
+      setAuthed(!!session?.user),
+    );
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   function close() {
     setOpen(false);
@@ -71,11 +89,12 @@ export default function FeedbackWidget() {
   }
 
   const recording = status === "recording";
+  const expanded = authed && !open; // labelled pill only when signed in and closed
 
   return (
-    <div className="fixed bottom-5 right-5 z-40">
+    <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center">
       {open && (
-        <div className="absolute bottom-full right-0 mb-3 w-[280px] rounded-2xl bg-white border border-line shadow-soft p-4">
+        <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 w-[280px] rounded-2xl bg-white border border-line shadow-soft p-4">
           <div className="flex items-center justify-between mb-2">
             <span className="font-[700] text-[15px]">Un retour&nbsp;?</span>
             <button
@@ -130,10 +149,19 @@ export default function FeedbackWidget() {
 
       <button
         onClick={() => (open ? close() : setOpen(true))}
-        aria-label="Donner un retour"
-        className="w-12 h-12 rounded-full bg-brand text-white shadow-[0_8px_22px_rgba(255,90,20,.30)] flex items-center justify-center hover:bg-brand-dark transition"
+        aria-label={open ? "Fermer" : "Donner un retour"}
+        className={`${open ? "" : "feedback-bounce"} inline-flex items-center justify-center gap-2 h-12 rounded-full bg-[#1e3a5f] text-white shadow-[0_8px_22px_rgba(30,58,95,.32)] hover:bg-[#16304d] transition font-[650] text-[14px] ${
+          expanded ? "px-4" : "w-12"
+        }`}
       >
-        {open ? <X size={20} /> : <MessageSquare size={20} />}
+        {open ? (
+          <X size={19} />
+        ) : (
+          <>
+            <MessageSquare size={18} />
+            {expanded && <span>Un retour&nbsp;?</span>}
+          </>
+        )}
       </button>
     </div>
   );

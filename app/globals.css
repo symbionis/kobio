@@ -56,3 +56,31 @@ body {
     transform: rotate(360deg);
   }
 }
+
+/* Feedback button: a gentle bounce near the tail of each cycle so it draws the
+   eye occasionally rather than fidgeting constantly. */
+.feedback-bounce {
+  animation: feedbackBounce 7s ease-in-out infinite;
+}
+@keyframes feedbackBounce {
+  0%, 80%, 100% {
+    transform: translateY(0);
+  }
+  85% {
+    transform: translateY(-9px);
+  }
+  90% {
+    transform: translateY(0);
+  }
+  94% {
+    transform: translateY(-4px);
+  }
+  98% {
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .feedback-bounce {
+    animation: none;
+  }
+}
