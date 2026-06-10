@@ -3,8 +3,6 @@ import type { CompanyRow, VatRate } from "./types";
 
 export interface SaveCompanyInput {
   name: string;
-  first_name: string | null;
-  last_name: string | null;
   address: string | null;
   postcode: string | null;
   city: string | null;
@@ -37,8 +35,6 @@ export async function saveCompany(scope: OwnerScope, input: SaveCompanyInput): P
   const row = {
     owner_id: scope.ownerId,
     name: input.name.trim(),
-    first_name: input.first_name,
-    last_name: input.last_name,
     address: input.address,
     postcode: input.postcode,
     city: input.city,

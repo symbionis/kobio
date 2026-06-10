@@ -14,13 +14,20 @@ export interface VatRate {
   rate: number;
 }
 
+/** The person operating the account (1:1 with the auth user). Distinct from the
+ *  company — name, e-mail, and phone are person-level. */
+export interface UserRow {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
 export interface CompanyRow {
   id: string;
   owner_id: string;
   name: string;
-  /** The person operating the account (distinct from the company name). */
-  first_name: string | null;
-  last_name: string | null;
   address: string | null;
   postcode: string | null;
   city: string | null;

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { UnauthorizedError, getOptionalOwner, requireOwner } from "../../../src/db/auth";
 import { getCompany, saveCompany } from "../../../src/db/company";
+import { captureServer, captureServerException } from "../../../src/lib/posthog-server";
 import type { VatRate } from "../../../src/db/types";
 import { asTrade } from "../../../src/quote/trades";
 
@@ -35,8 +36,6 @@ export async function GET(): Promise<Response> {
 
 interface CompanyBody {
   name: string;
-  first_name?: string | null;
-  last_name?: string | null;
   address?: string | null;
   postcode?: string | null;
   city?: string | null;
@@ -56,8 +55,6 @@ export async function POST(request: Request): Promise<Response> {
     const b = (await request.json()) as CompanyBody;
     const saved = await saveCompany(scope, {
       name: b.name,
-      first_name: b.first_name?.trim() || null,
-      last_name: b.last_name?.trim() || null,
       address: b.address ?? null,
       postcode: b.postcode ?? null,
       city: b.city ?? null,
@@ -69,11 +66,17 @@ export async function POST(request: Request): Promise<Response> {
       logo_ref: b.logo_ref ?? null,
       trade: asTrade(b.trade),
     });
+    await captureServer(scope.ownerId, "company_saved", {
+      has_logo: Boolean(b.logo_ref),
+      vat_rate_count: sanitizeVatRates(b.vat_rates).length,
+      trade: asTrade(b.trade),
+    });
     return NextResponse.json({ company: saved });
   } catch (err) {
     if (err instanceof UnauthorizedError) {
       return NextResponse.json({ error: "Connexion requise." }, { status: 401 });
     }
+    await captureServerException(err, undefined, { route: "POST /api/company" });
     const message = err instanceof Error ? err.message : "Erreur.";
     return NextResponse.json({ error: message }, { status: 400 });
   }

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { type ChangeEvent, type FormEvent, useState } from "react";
 import type { CompanyRow } from "../../src/db/types";
 import { TRADES } from "../../src/quote/trades";
-import PhoneInput from "../components/PhoneInput";
 import Select from "../components/Select";
 
 /** VAT-rate rows are edited as strings (the rate field can be mid-typing/empty)
@@ -18,15 +17,11 @@ interface RateRow {
 export default function CompanyForm({ initial }: { initial: CompanyRow | null }) {
   const router = useRouter();
   const [name, setName] = useState(initial?.name ?? "");
-  const [firstName, setFirstName] = useState(initial?.first_name ?? "");
-  const [lastName, setLastName] = useState(initial?.last_name ?? "");
   const [trade, setTrade] = useState(initial?.trade ?? "");
   const [address, setAddress] = useState(initial?.address ?? "");
   const [postcode, setPostcode] = useState(initial?.postcode ?? "");
   const [city, setCity] = useState(initial?.city ?? "");
   const [country, setCountry] = useState(initial?.country ?? "Suisse");
-  const [email, setEmail] = useState(initial?.email ?? "");
-  const [phone, setPhone] = useState(initial?.phone ?? "");
   const [vat, setVat] = useState(initial?.vat_number ?? "");
   const [rates, setRates] = useState<RateRow[]>(() =>
     (initial?.vat_rates ?? []).map((r) => ({ label: r.label, rate: String(r.rate) })),
@@ -73,14 +68,10 @@ export default function CompanyForm({ initial }: { initial: CompanyRow | null })
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          first_name: firstName || null,
-          last_name: lastName || null,
           address: address || null,
           postcode: postcode || null,
           city: city || null,
           country: country || null,
-          email: email || null,
-          phone: phone || null,
           vat_number: vat || null,
           vat_rates,
           logo_ref: logo,
@@ -103,24 +94,9 @@ export default function CompanyForm({ initial }: { initial: CompanyRow | null })
     "rounded-xl border border-zinc-300 px-3 py-2.5 text-[14.5px] bg-white text-ink outline-none focus:ring-2 focus:ring-[#ffbb94]";
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={submit}>
-      <section className="rounded-[24px] bg-white shadow-soft border border-line p-5 sm:p-6">
-        <h2 className="font-[730] text-[17px] mb-4">Vous</h2>
-        <div className="grid grid-cols-2 gap-4">
-          <label className={field}>
-            Prénom
-            <input className={input} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-          </label>
-          <label className={field}>
-            Nom
-            <input className={input} value={lastName} onChange={(e) => setLastName(e.target.value)} />
-          </label>
-        </div>
-      </section>
-
-      <section className="rounded-[24px] bg-white shadow-soft border border-line p-5 sm:p-6">
-        <h2 className="font-[730] text-[17px] mb-4">Profil de l'entreprise</h2>
-        <div className="flex flex-col gap-4">
+    <section className="rounded-[24px] bg-white shadow-soft border border-line p-5 sm:p-6">
+      <h2 className="font-[730] text-[17px] mb-4">Profil de l'entreprise</h2>
+      <form className="flex flex-col gap-4" onSubmit={submit}>
         <label className={field}>
           Nom de l'entreprise
           <input className={input} value={name} onChange={(e) => setName(e.target.value)} required />
@@ -151,14 +127,6 @@ export default function CompanyForm({ initial }: { initial: CompanyRow | null })
           Pays
           <input className={input} value={country} onChange={(e) => setCountry(e.target.value)} />
         </label>
-        <label className={field}>
-          E-mail
-          <input className={input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </label>
-        <div className={field}>
-          Téléphone
-          <PhoneInput defaultValue={initial?.phone ?? null} onChange={(e164) => setPhone(e164 ?? "")} />
-        </div>
         <fieldset className="rounded-2xl border border-line bg-paper-2 p-4 flex flex-col gap-4">
           <legend className="px-1 text-[12.5px] font-[650] text-zinc-600">TVA</legend>
 
@@ -245,9 +213,8 @@ export default function CompanyForm({ initial }: { initial: CompanyRow | null })
           </button>
           {saved && <span className="text-[13.5px] text-emerald-700">Enregistré</span>}
         </div>
-        {error && <p className="mt-3 text-[13.5px] text-[#b91c1c]">{error}</p>}
-        </div>
-      </section>
-    </form>
+      </form>
+      {error && <p className="mt-3 text-[13.5px] text-[#b91c1c]">{error}</p>}
+    </section>
   );
 }
