@@ -1,5 +1,5 @@
 import type { OwnerScope } from "./auth";
-import type { CompanyRow } from "./types";
+import type { CompanyRow, VatRate } from "./types";
 
 export interface SaveCompanyInput {
   name: string;
@@ -10,6 +10,7 @@ export interface SaveCompanyInput {
   email: string | null;
   phone: string | null;
   vat_number: string | null;
+  vat_rates: VatRate[];
   logo_ref: string | null;
   trade: string | null;
 }
@@ -41,6 +42,7 @@ export async function saveCompany(scope: OwnerScope, input: SaveCompanyInput): P
     email: input.email,
     phone: input.phone,
     vat_number: input.vat_number,
+    vat_rates: input.vat_rates,
     logo_ref: input.logo_ref,
     trade: input.trade,
     updated_at: new Date().toISOString(),

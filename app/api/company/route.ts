@@ -1,7 +1,23 @@
 import { NextResponse } from "next/server";
 import { UnauthorizedError, getOptionalOwner, requireOwner } from "../../../src/db/auth";
 import { getCompany, saveCompany } from "../../../src/db/company";
+import type { VatRate } from "../../../src/db/types";
 import { asTrade } from "../../../src/quote/trades";
+
+/** Keep only well-formed rate entries: a finite, non-negative percentage with a
+ *  trimmed label. Drops blanks/garbage so the stored list is always clean. */
+function sanitizeVatRates(input: unknown): VatRate[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<number>();
+  const out: VatRate[] = [];
+  for (const item of input) {
+    const rate = Number((item as VatRate)?.rate);
+    if (!Number.isFinite(rate) || rate < 0 || seen.has(rate)) continue;
+    seen.add(rate);
+    out.push({ label: String((item as VatRate)?.label ?? "").trim(), rate });
+  }
+  return out;
+}
 
 export const runtime = "nodejs";
 
@@ -26,6 +42,7 @@ interface CompanyBody {
   email?: string | null;
   phone?: string | null;
   vat_number?: string | null;
+  vat_rates?: VatRate[];
   logo_ref?: string | null;
   trade?: string | null;
 }
@@ -44,6 +61,7 @@ export async function POST(request: Request): Promise<Response> {
       email: b.email ?? null,
       phone: b.phone ?? null,
       vat_number: b.vat_number ?? null,
+      vat_rates: sanitizeVatRates(b.vat_rates),
       logo_ref: b.logo_ref ?? null,
       trade: asTrade(b.trade),
     });

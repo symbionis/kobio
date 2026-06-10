@@ -8,7 +8,7 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer";
 import type { ClientRow, CompanyRow } from "../../src/db/types";
-import { VAT_RATE, formatCHF, totalsFromLines } from "../../src/quote/totals";
+import { formatCHF, totalsFromLines } from "../../src/quote/totals";
 import type { Quote } from "../../src/quote/types";
 
 /**
@@ -64,14 +64,23 @@ function DevisDocument({
   company,
   client,
   quote,
-  tvaApplicable,
+  vatRate,
+  createdAt,
 }: {
   company: CompanyRow;
   client: ClientRow;
   quote: Quote;
-  tvaApplicable: boolean;
+  vatRate: number | null;
+  createdAt: string;
 }) {
-  const totals = totalsFromLines(quote.lines, tvaApplicable);
+  const totals = totalsFromLines(quote.lines, vatRate);
+  const dateLabel = createdAt
+    ? new Date(createdAt).toLocaleDateString("fr-CH", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+    : "";
   return (
     <Document title={quote.title}>
       <Page size="A4" style={s.page}>
@@ -88,7 +97,10 @@ function DevisDocument({
             {company.phone ? <Text style={s.muted}>{company.phone}</Text> : null}
             {company.vat_number ? <Text style={s.muted}>TVA {company.vat_number}</Text> : null}
           </View>
-          <Text style={s.docTitle}>DEVIS</Text>
+          <View style={{ alignItems: "flex-end" }}>
+            <Text style={s.docTitle}>DEVIS</Text>
+            {dateLabel ? <Text style={[s.muted, { marginTop: 6 }]}>Date : {dateLabel}</Text> : null}
+          </View>
         </View>
 
         <View style={s.block}>
@@ -115,7 +127,9 @@ function DevisDocument({
             <Text style={s.cNum}>
               {l.quantity.value === null ? "—" : `${l.quantity.value} ${l.quantity.unit ?? ""}`.trim()}
             </Text>
-            <Text style={s.cNum}>{l.quantity.kind === "forfait" ? "forfait" : CHF(l.rate)}</Text>
+            <Text style={s.cNum}>
+              {l.quantity.kind === "forfait" && l.quantity.value === null ? "forfait" : CHF(l.rate)}
+            </Text>
             <Text style={s.cNum}>{CHF(l.amount)}</Text>
           </View>
         ))}
@@ -125,9 +139,9 @@ function DevisDocument({
             <Text>HT</Text>
             <Text>CHF {CHF(totals.ht)}</Text>
           </View>
-          {tvaApplicable ? (
+          {vatRate != null ? (
             <View style={s.totalRow}>
-              <Text>TVA {VAT_RATE}%</Text>
+              <Text>TVA {vatRate}%</Text>
               <Text>CHF {CHF(totals.tva)}</Text>
             </View>
           ) : null}
@@ -146,9 +160,16 @@ export async function renderQuotePdf(
   company: CompanyRow,
   client: ClientRow,
   quote: Quote,
-  tvaApplicable: boolean,
+  vatRate: number | null,
+  createdAt: string,
 ): Promise<Buffer> {
   return renderToBuffer(
-    <DevisDocument company={company} client={client} quote={quote} tvaApplicable={tvaApplicable} />,
+    <DevisDocument
+      company={company}
+      client={client}
+      quote={quote}
+      vatRate={vatRate}
+      createdAt={createdAt}
+    />,
   );
 }

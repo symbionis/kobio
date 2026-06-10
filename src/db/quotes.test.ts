@@ -34,7 +34,11 @@ function row(overrides: Partial<QuoteRow> = {}): QuoteRow {
     lines: [],
     review_notes: [],
     sent: false,
+    accepted: false,
+    sent_at: null,
+    accepted_at: null,
     tva_applicable: true,
+    vat_rate: 8.1,
     transcript: null,
     trade: null,
     created_at: "",
@@ -77,7 +81,7 @@ describe("persistQuote", () => {
   it("returns the saved row even when logOverrides throws (best-effort, no duplicate-on-retry)", async () => {
     mockedLogOverrides.mockRejectedValueOnce(new Error("boom"));
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const saved = await persistQuote(scope, quote, { client_id: null, sent: false, tva_applicable: true });
+    const saved = await persistQuote(scope, quote, { client_id: null, sent: false, accepted: false, sent_at: null, accepted_at: null, vat_rate: 8.1 });
     expect(saved.id).toBe("saved-1");
     expect(errSpy).toHaveBeenCalled();
     errSpy.mockRestore();
@@ -85,7 +89,7 @@ describe("persistQuote", () => {
 
   it("succeeds normally when logOverrides resolves", async () => {
     mockedLogOverrides.mockResolvedValueOnce(undefined);
-    const saved = await persistQuote(scope, quote, { client_id: "c1", sent: true, tva_applicable: false });
+    const saved = await persistQuote(scope, quote, { client_id: "c1", sent: true, accepted: true, sent_at: null, accepted_at: null, vat_rate: null });
     expect(saved.id).toBe("saved-1");
   });
 });

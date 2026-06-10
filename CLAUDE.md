@@ -47,8 +47,9 @@ the rest. That split is the product, not a limitation.
   - Transcription + extraction run through **OpenRouter** (one key,
     `OPENROUTER_API_KEY` in `.env`): STT = `gpt-4o-transcribe` (FR), extraction
     = `gpt-4o` with strict `json_schema`. Models are env-overridable; defaults
-    in `src/llm/client.ts`. Without a key, `/api/quote` falls back to the Amina
-    demo fixture (flagged `stubbed` in the UI).
+    in `src/llm/client.ts`. Without a key, `/api/quote` fails loudly (503
+    "Service de transcription non configuré") — it never fabricates a quote.
+    The Amina fixture (`src/quote/fixture.ts`) is now test/dev-script only.
   - **Code owns the numbers**, the LLM owns language only — see BUILD.md "Parse
     contract". Deterministic core in `src/quote/` (evaluator, compute,
     cross-line net, totals), 52 tests.

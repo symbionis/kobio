@@ -1,13 +1,15 @@
 "use client";
 
-import { AlertTriangle, Check, Pencil, Save } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { AlertTriangle, Check, Plus, Save, Trash2 } from "lucide-react";
+import type { ReactNode } from "react";
 import { round2 } from "../../src/quote/compute";
 import { parseNum } from "../../src/quote/input";
 import { deriveStatus } from "../../src/quote/status";
-import { VAT_RATE, formatCHF, totalsFromLines } from "../../src/quote/totals";
+import type { VatRate } from "../../src/db/types";
+import { formatCHF, totalsFromLines } from "../../src/quote/totals";
 import type { Line, Quote } from "../../src/quote/types";
 import { cn } from "../lib/cn";
+import RateSelect from "./RateSelect";
 
 const CHF = formatCHF;
 
@@ -18,11 +20,24 @@ interface QuoteEditorProps {
   onSave?: () => void;
   saving?: boolean;
   saveLabel?: string;
-  /** TVA toggle — shown only when the issuer is VAT-registered (available). */
-  vat?: { available: boolean; applicable: boolean; onChange: (b: boolean) => void };
+  /** TVA rate picker. `rates` are the builder's configured rates; `selected` is
+   *  the chosen one (null = Aucune). `locked` shows it read-only (e.g. once
+   *  sent). Pass undefined to hide VAT entirely. */
+  vat?: {
+    rates: VatRate[];
+    selected: number | null;
+    onChange: (rate: number | null) => void;
+    locked?: boolean;
+  };
   /** Extra controls rendered in the sticky right rail, below the totals
    *  (e.g. client picker, status, PDF on the saved-quote screen). */
   summaryExtras?: ReactNode;
+  /** Slot rendered in the left column between the title card and Prestations
+   *  (e.g. the "Validé" action on a sent devis). */
+  afterTitle?: ReactNode;
+  /** Lock the quote for editing (e.g. once it's validé) — inputs disabled and
+   *  edit actions hidden. The afterTitle slot stays interactive. */
+  readOnly?: boolean;
 }
 
 const numInput =
@@ -42,9 +57,9 @@ export default function QuoteEditor({
   saveLabel,
   vat,
   summaryExtras,
+  afterTitle,
+  readOnly = false,
 }: QuoteEditorProps) {
-  const [editingTitle, setEditingTitle] = useState(false);
-
   function patchLine(index: number, next: Line) {
     onChange({ ...quote, lines: quote.lines.map((l, i) => (i === index ? next : l)) });
   }
@@ -64,8 +79,27 @@ export default function QuoteEditor({
     patchLine(i, { ...line, rate, amount: value === null ? round2(rate) : round2(value * rate) });
   }
 
-  function onAmount(i: number, line: Line, raw: string) {
-    patchLine(i, { ...line, amount: parseNum(raw) });
+  // Append a blank forfait line — a manual flat-rate entry (free-text label,
+  // quantity × unit price), no formula. Quantity defaults to 1. Added lines are
+  // Ready by default (nothing to verify).
+  function addForfait() {
+    const line: Line = {
+      raw_text: "",
+      description: "",
+      quantity: { kind: "forfait", expression: null, value: 1, unit: null },
+      rate: 0,
+      rate_source: "spoken",
+      amount: 0,
+      catalog_match: { candidates: [], confidence: "none" },
+      price_override: "n/a",
+      tax_rate: quote.tax_rate_default,
+      needs_review: false,
+    };
+    onChange({ ...quote, lines: [...quote.lines, line] });
+  }
+
+  function removeLine(i: number) {
+    onChange({ ...quote, lines: quote.lines.filter((_, idx) => idx !== i) });
   }
 
   // Clearing a line's review flag is how a Draft becomes Ready (status re-derives).
@@ -73,8 +107,9 @@ export default function QuoteEditor({
     patchLine(i, { ...line, needs_review: false });
   }
 
-  const vatApplicable = vat?.available ? vat.applicable : false;
-  const totals = totalsFromLines(quote.lines, vatApplicable);
+  const vatRate = vat ? vat.selected : null;
+  const vatLocked = readOnly || Boolean(vat?.locked);
+  const totals = totalsFromLines(quote.lines, vatRate);
   const status = deriveStatus(quote.lines, false);
   const isDraft = status === "Draft";
 
@@ -84,8 +119,18 @@ export default function QuoteEditor({
       <div className="space-y-5">
         {quote.review_notes.length > 0 && (
           <section className="rounded-[20px] bg-[#fff8ed] border border-[#f3d39b] p-4 sm:p-5">
-            <div className="flex items-center gap-2 text-[12px] font-mono-label uppercase tracking-wide text-[#92400e]">
-              <AlertTriangle size={15} /> À vérifier
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-[12px] font-mono-label uppercase tracking-wide text-[#92400e]">
+                <AlertTriangle size={15} /> À vérifier
+              </div>
+              {!readOnly && (
+                <button
+                  onClick={() => onChange({ ...quote, review_notes: [] })}
+                  className="inline-flex items-center gap-1 text-[12px] font-[600] text-[#92400e] border border-[#e7c890] bg-white rounded-md px-2.5 py-1 hover:bg-amber-50 transition"
+                >
+                  <Check size={13} /> Tout est vérifié
+                </button>
+              )}
             </div>
             <ul className="mt-2 space-y-1 text-[14px] text-[#7c4a08]">
               {quote.review_notes.map((n, i) => (
@@ -102,39 +147,24 @@ export default function QuoteEditor({
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="flex-1 min-w-[240px]">
               <div className="text-[11.5px] font-mono-label text-zinc-500 mb-1">DEVIS</div>
-              {editingTitle ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    autoFocus
-                    className="font-display text-[26px] leading-tight tracking-tight flex-1 min-w-0 bg-paper-2 border border-line rounded-lg px-2 py-0.5 outline-none focus:ring-2 focus:ring-[#ffbb94]"
-                    value={quote.title}
-                    onChange={(e) => onChange({ ...quote, title: e.target.value })}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") setEditingTitle(false);
-                    }}
-                    onBlur={() => setEditingTitle(false)}
-                    placeholder="Devis sans titre"
-                  />
-                  <button
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => setEditingTitle(false)}
-                    className="inline-flex items-center gap-1 text-[13px] font-[600] text-emerald-700 hover:text-emerald-800 transition"
-                  >
-                    <Check size={15} /> OK
-                  </button>
-                </div>
+              {readOnly ? (
+                <h2 className="font-display text-[26px] leading-tight tracking-tight">
+                  {quote.title || "Devis sans titre"}
+                </h2>
               ) : (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="font-display text-[26px] leading-tight tracking-tight">
-                    {quote.title || "Devis sans titre"}
-                  </h2>
-                  <button
-                    onClick={() => setEditingTitle(true)}
-                    className="inline-flex items-center gap-1 text-[12.5px] font-[600] text-zinc-500 hover:text-black border border-zinc-300 rounded-full px-2.5 py-1 transition"
-                  >
-                    <Pencil size={13} /> Modifier
-                  </button>
-                </div>
+                <textarea
+                  rows={1}
+                  ref={(el) => {
+                    if (el) {
+                      el.style.height = "auto";
+                      el.style.height = `${el.scrollHeight}px`;
+                    }
+                  }}
+                  className="font-display text-[26px] leading-tight tracking-tight w-full bg-transparent border-b border-transparent hover:border-zinc-200 focus:border-zinc-300 px-0 py-0.5 outline-none transition-colors resize-none overflow-hidden"
+                  value={quote.title}
+                  onChange={(e) => onChange({ ...quote, title: e.target.value })}
+                  placeholder="Devis sans titre"
+                />
               )}
               <div className="text-[14px] text-zinc-600 mt-1">
                 Contact dicté : <span className="font-[600]">{quote.contact.spoken_name || "—"}</span>
@@ -153,6 +183,8 @@ export default function QuoteEditor({
           </div>
         </section>
 
+        {afterTitle}
+
         <section className="rounded-[24px] bg-white shadow-soft border border-line p-5 sm:p-6">
           <div className="font-[730] text-[17px] mb-3">Prestations</div>
           <div className="space-y-3">
@@ -162,92 +194,99 @@ export default function QuoteEditor({
                 <div
                   key={i}
                   className={cn(
-                    "rounded-[16px] border p-3.5",
+                    "relative rounded-[16px] border p-3.5",
                     line.needs_review
                       ? "border-[#f3d39b] bg-[#fffaf0]"
                       : "border-zinc-200 bg-white",
                   )}
                 >
+                  {isForfait && !readOnly && (
+                    <button
+                      onClick={() => removeLine(i)}
+                      title="Supprimer la ligne"
+                      className="absolute top-2.5 right-2.5 text-zinc-400 hover:text-red-600 transition"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+
                   {line.needs_review && (
                     <div className="flex items-center justify-between mb-2">
                       <span className="inline-flex items-center gap-1 text-[11px] font-[600] text-[#92400e] bg-amber-100 rounded-md px-2 py-0.5">
                         <AlertTriangle size={12} /> À vérifier
                       </span>
-                      <button
-                        onClick={() => resolveLine(i, line)}
-                        className="inline-flex items-center gap-1 text-[12px] font-[600] text-[#92400e] border border-[#e7c890] bg-white rounded-md px-2.5 py-1 hover:bg-amber-50 transition"
-                      >
-                        <Check size={13} /> marquer vérifié
-                      </button>
+                      {!readOnly && (
+                        <button
+                          onClick={() => resolveLine(i, line)}
+                          className="inline-flex items-center gap-1 text-[12px] font-[600] text-[#92400e] border border-[#e7c890] bg-white rounded-md px-2.5 py-1 hover:bg-amber-50 transition"
+                        >
+                          <Check size={13} /> marquer vérifié
+                        </button>
+                      )}
                     </div>
                   )}
 
-                  <input
-                    className="w-full bg-transparent outline-none text-[15px] font-[550] border-b border-transparent focus:border-zinc-300 pb-1"
+                  <textarea
+                    rows={1}
+                    ref={(el) => {
+                      if (el) {
+                        el.style.height = "auto";
+                        el.style.height = `${el.scrollHeight}px`;
+                      }
+                    }}
+                    disabled={readOnly}
+                    className="w-full bg-transparent outline-none text-[15px] font-[550] leading-snug border-b border-transparent focus:border-zinc-300 pb-1 pr-6 resize-none overflow-hidden disabled:opacity-100"
                     value={line.description}
+                    placeholder={isForfait ? "Désignation du forfait" : ""}
                     onChange={(e) => onDescription(i, line, e.target.value)}
                   />
 
+                  {/* Type / calculation pill, below the title. */}
+                  {(isForfait || line.quantity.expression) && (
+                    <div className="mt-1.5">
+                      <span
+                        className={cn(
+                          "inline-block bg-zinc-100 text-zinc-500 rounded-md px-2 py-1 text-[12px]",
+                          !isForfait && "font-mono-label",
+                        )}
+                      >
+                        {isForfait ? "Forfait" : line.quantity.expression}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap items-end gap-3 mt-3 text-[13px]">
-                    {isForfait ? (
-                      <>
-                        <span className="text-[12px] text-zinc-500 italic self-center">Forfait</span>
-                        <label className="flex flex-col gap-1 text-[11px] text-zinc-500">
-                          Montant
-                          <input
-                            type="number"
-                            step="0.01"
-                            className={cn(numInput, "w-[120px]")}
-                            value={line.amount}
-                            onChange={(e) => onAmount(i, line, e.target.value)}
-                          />
-                        </label>
-                      </>
-                    ) : (
-                      <>
-                        {line.quantity.expression && (
-                          <span className="font-mono-label text-[12px] text-zinc-500 bg-zinc-100 rounded-md px-2 py-1 self-center">
-                            {line.quantity.expression}
-                          </span>
-                        )}
-                        <label className="flex flex-col gap-1 text-[11px] text-zinc-500">
-                          Quantité
-                          <input
-                            type="number"
-                            step="0.01"
-                            className={cn(numInput, "w-[88px]")}
-                            value={line.quantity.value ?? 0}
-                            onChange={(e) => onValue(i, line, e.target.value)}
-                          />
-                        </label>
-                        {line.quantity.unit && (
-                          <span className="text-zinc-500 self-center pb-2">{line.quantity.unit}</span>
-                        )}
-                        <span className="text-zinc-400 self-center pb-2">×</span>
-                        <label className="flex flex-col gap-1 text-[11px] text-zinc-500">
-                          Tarif
-                          <input
-                            type="number"
-                            step="0.01"
-                            className={cn(numInput, "w-[104px]")}
-                            value={line.rate}
-                            onChange={(e) => onRate(i, line, e.target.value)}
-                          />
-                        </label>
-                        <span className="text-zinc-400 self-center pb-2">=</span>
-                        <label className="flex flex-col gap-1 text-[11px] text-zinc-500">
-                          Montant
-                          <input
-                            type="number"
-                            step="0.01"
-                            className={cn(numInput, "w-[112px]")}
-                            value={line.amount}
-                            onChange={(e) => onAmount(i, line, e.target.value)}
-                          />
-                        </label>
-                      </>
+                    <label className="flex flex-col gap-1 text-[12.5px] text-zinc-500">
+                      Quantité
+                      <input
+                        type="number"
+                        step="0.01"
+                        disabled={readOnly}
+                        className={cn(numInput, "w-[68px]")}
+                        value={line.quantity.value ?? ""}
+                        placeholder={isForfait ? "1" : undefined}
+                        onChange={(e) => onValue(i, line, e.target.value)}
+                      />
+                    </label>
+                    {line.quantity.unit && (
+                      <span className="text-zinc-500 self-center pb-2">{line.quantity.unit}</span>
                     )}
-                    <div className="ml-auto self-center pb-1 text-[15px] font-[700] tabular-nums whitespace-nowrap">
+                    <span className="text-zinc-400 self-center pb-2">×</span>
+                    <label className="flex flex-col gap-1 text-[12.5px] text-zinc-500">
+                      Tarif
+                      <input
+                        type="number"
+                        step="0.01"
+                        disabled={readOnly}
+                        className={cn(numInput, "w-[84px]")}
+                        value={line.rate}
+                        onChange={(e) => onRate(i, line, e.target.value)}
+                      />
+                    </label>
+                    <span className="text-zinc-400 self-center pb-2">=</span>
+
+                    {/* Calculated line total — read-only, left-aligned. */}
+                    <div className="flex-1 min-w-[110px] self-center pb-1 text-left text-[16px] font-[700] tabular-nums whitespace-nowrap">
                       CHF {CHF(line.amount)}
                     </div>
                   </div>
@@ -255,6 +294,15 @@ export default function QuoteEditor({
               );
             })}
           </div>
+
+          {!readOnly && (
+            <button
+              onClick={addForfait}
+              className="mt-3 w-full inline-flex items-center justify-center gap-1.5 text-[13px] font-[600] text-zinc-600 border border-dashed border-zinc-300 rounded-xl px-3 py-2.5 hover:border-zinc-400 hover:text-black hover:bg-paper-2 transition"
+            >
+              <Plus size={15} /> Ajouter un forfait
+            </button>
+          )}
         </section>
       </div>
 
@@ -267,9 +315,29 @@ export default function QuoteEditor({
               <span>HT</span>
               <span className="tabular-nums">CHF {CHF(totals.ht)}</span>
             </div>
-            {vatApplicable && (
-              <div className="flex justify-between text-zinc-600">
-                <span>TVA {VAT_RATE}%</span>
+            {vat && (
+              <div className="flex items-center justify-between gap-2 text-zinc-600">
+                <div className="flex items-center gap-2 min-w-0">
+                  {vatLocked ? (
+                    <span className="text-zinc-700">
+                      TVA {vat.selected != null ? `${vat.selected}%` : "Aucune"}
+                    </span>
+                  ) : vat.rates.length > 0 || vat.selected != null ? (
+                    <div className="w-[150px]">
+                      <RateSelect rates={vat.rates} value={vat.selected} onChange={vat.onChange} />
+                    </div>
+                  ) : (
+                    <span>
+                      TVA{" "}
+                      <a
+                        href="/settings"
+                        className="text-brand hover:text-brand-dark underline text-[13.5px]"
+                      >
+                        Configurer
+                      </a>
+                    </span>
+                  )}
+                </div>
                 <span className="tabular-nums">CHF {CHF(totals.tva)}</span>
               </div>
             )}
@@ -278,18 +346,6 @@ export default function QuoteEditor({
               <span className="tabular-nums">CHF {CHF(totals.ttc)}</span>
             </div>
           </div>
-
-          {vat?.available && (
-            <label className="mt-4 flex items-center gap-2 text-[13.5px] text-zinc-600 cursor-pointer">
-              <input
-                type="checkbox"
-                className="accent-brand"
-                checked={vat.applicable}
-                onChange={(e) => vat.onChange(e.target.checked)}
-              />
-              Appliquer la TVA ({VAT_RATE}%)
-            </label>
-          )}
 
           {onSave && (
             <button

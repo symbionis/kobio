@@ -46,7 +46,8 @@ export async function GET(
   if (!client) return NextResponse.json({ error: "Client introuvable." }, { status: 400 });
 
   try {
-    const pdf = await renderQuotePdf(company, client, rowToQuote(row), row.tva_applicable);
+    const vatRate = row.vat_rate == null ? null : Number(row.vat_rate);
+    const pdf = await renderQuotePdf(company, client, rowToQuote(row), vatRate, row.created_at);
     const safeId = id.replace(/[^a-zA-Z0-9-]/g, "");
     return new Response(new Uint8Array(pdf), {
       headers: {

@@ -4,6 +4,7 @@ import { FileText, Mic, Shield, Sparkles, Square, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import type { VatRate } from "../../src/db/types";
 import type { Quote } from "../../src/quote/types";
 import { TRADES } from "../../src/quote/trades";
 import AuthOtp from "../components/AuthOtp";
@@ -15,13 +16,11 @@ type Status = "idle" | "recording" | "loading" | "done" | "error";
 interface QuoteResponse {
   transcript: string;
   quote: Quote;
-  /** True when the server had no OpenRouter key and returned the demo fixture. */
-  stubbed?: boolean;
 }
 
 // Trade-agnostic tips for dictating a note that parses cleanly.
 const REMINDERS = [
-  "Le client et le titre du devis",
+  "Le nom du client et le titre du devis",
   "Chaque prestation, ligne par ligne",
   "Les quantités dictées comme un calcul (ex. « 5,25 plus 2,90 fois 2,76 »)",
   "Le tarif de chaque ligne",
@@ -39,12 +38,11 @@ export default function NewQuotePage() {
   const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<string>("");
   const [quote, setQuote] = useState<Quote | null>(null);
-  const [stubbed, setStubbed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
   const [needAuth, setNeedAuth] = useState(false);
-  const [companyHasVat, setCompanyHasVat] = useState(false);
-  const [tvaApplicable, setTvaApplicable] = useState(true);
+  const [vatRates, setVatRates] = useState<VatRate[]>([]);
+  const [vatRate, setVatRate] = useState<number | null>(null);
   const [trade, setTrade] = useState<string>("");
   const [seconds, setSeconds] = useState(0);
 
@@ -55,15 +53,18 @@ export default function NewQuotePage() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // TVA applies only when VAT-registered; default the trade from the company profile.
+  // Load the builder's configured VAT rates; default the devis to the first one
+  // (typically the standard rate). Also default the trade from the profile.
   useEffect(() => {
     fetch("/api/company")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        setCompanyHasVat(Boolean(data?.company?.vat_number));
+        const rates = (data?.company?.vat_rates ?? []) as VatRate[];
+        setVatRates(rates);
+        setVatRate(rates.length > 0 ? rates[0].rate : null);
         if (data?.company?.trade) setTrade(data.company.trade as string);
       })
-      .catch(() => setCompanyHasVat(false));
+      .catch(() => setVatRates([]));
   }, []);
 
   // Elapsed-time counter while recording.
@@ -72,6 +73,33 @@ export default function NewQuotePage() {
     setSeconds(0);
     const id = setInterval(() => setSeconds((s) => s + 1), 1000);
     return () => clearInterval(id);
+  }, [status]);
+
+  // Keep the screen awake while recording so a long voice note doesn't get
+  // interrupted by the phone dimming/locking. The lock is auto-released by the
+  // browser when the tab is hidden, so re-acquire when it becomes visible again.
+  useEffect(() => {
+    if (status !== "recording") return;
+    if (!("wakeLock" in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    let cancelled = false;
+    const request = async () => {
+      try {
+        lock = await navigator.wakeLock.request("screen");
+      } catch {
+        /* denied or unsupported — recording still works, screen just may dim */
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && !cancelled) void request();
+    };
+    void request();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      lock?.release().catch(() => {});
+    };
   }, [status]);
 
   // Live waveform from an analyser tapped off the mic stream.
@@ -157,7 +185,6 @@ export default function NewQuotePage() {
       if (!res.ok) throw new Error(data.error ?? `Erreur ${res.status}`);
       setTranscript(data.transcript);
       setQuote(data.quote);
-      setStubbed(Boolean(data.stubbed));
       setStatus("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Échec du traitement de la note.");
@@ -180,7 +207,6 @@ export default function NewQuotePage() {
       const data = (await res.json()) as QuoteResponse & { error?: string };
       if (!res.ok) throw new Error(data.error ?? `Erreur ${res.status}`);
       setQuote(data.quote);
-      setStubbed(Boolean(data.stubbed));
       toast.success("Devis recalculé depuis la transcription");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Échec du recalcul.";
@@ -214,7 +240,7 @@ export default function NewQuotePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           quote,
-          tva_applicable: companyHasVat && tvaApplicable,
+          vat_rate: vatRate,
           transcript,
           trade: trade || null,
         }),
@@ -260,20 +286,12 @@ export default function NewQuotePage() {
           </button>
         </div>
 
-        {stubbed && (
-          <div className="rounded-[18px] bg-[#eef6ff] border border-[#bfdbfe] text-[#1e3a8a] px-4 py-3 text-[13.5px] mb-5">
-            Mode démo — aucune clé OpenRouter configurée. Ceci est le devis d'exemple (Amina), pas
-            votre enregistrement. Ajoutez <code className="font-mono-label">OPENROUTER_API_KEY</code> à{" "}
-            <code className="font-mono-label">.env</code> pour transcrire la vraie note.
-          </div>
-        )}
-
         <QuoteEditor
           quote={quote}
           onChange={setQuote}
           onSave={saveToLibrary}
           saving={saving}
-          vat={{ available: companyHasVat, applicable: tvaApplicable, onChange: setTvaApplicable }}
+          vat={{ rates: vatRates, selected: vatRate, onChange: setVatRate }}
         />
 
         {/* Editable transcript — fix what was heard, then recalculate. */}

@@ -16,7 +16,13 @@ export interface SaveQuoteInput {
   lines: Line[];
   review_notes: string[];
   sent: boolean;
-  tva_applicable: boolean;
+  /** Client validated/accepted the devis. */
+  accepted: boolean;
+  /** Timestamps of first Envoyé / Validé, computed by the save route. */
+  sent_at: string | null;
+  accepted_at: string | null;
+  /** Chosen VAT rate for this devis, or null for "Aucune". */
+  vat_rate: number | null;
   /** Source voice transcript; persisted when migration 0006 has been applied. */
   transcript?: string | null;
   /** The trade (métier) active at dictation. */
@@ -39,7 +45,12 @@ export async function saveQuote(scope: OwnerScope, input: SaveQuoteInput): Promi
     lines: input.lines,
     review_notes: input.review_notes,
     sent: input.sent,
-    tva_applicable: input.tva_applicable,
+    accepted: input.accepted,
+    sent_at: input.sent_at,
+    accepted_at: input.accepted_at,
+    vat_rate: input.vat_rate,
+    // Legacy flag, kept in sync so any path still reading it stays correct.
+    tva_applicable: input.vat_rate != null,
     // Validate centrally so no save path can persist an unknown trade value.
     trade: asTrade(input.trade),
     updated_at: new Date().toISOString(),
@@ -83,7 +94,10 @@ export async function persistQuote(
     id?: string;
     client_id: string | null;
     sent: boolean;
-    tva_applicable: boolean;
+    accepted: boolean;
+    sent_at: string | null;
+    accepted_at: string | null;
+    vat_rate: number | null;
     transcript?: string | null;
     trade?: string | null;
   },
@@ -97,7 +111,10 @@ export async function persistQuote(
     lines: quote.lines,
     review_notes: quote.review_notes,
     sent: opts.sent,
-    tva_applicable: opts.tva_applicable,
+    accepted: opts.accepted,
+    sent_at: opts.sent_at,
+    accepted_at: opts.accepted_at,
+    vat_rate: opts.vat_rate,
     transcript: opts.transcript,
     trade: opts.trade,
   });
