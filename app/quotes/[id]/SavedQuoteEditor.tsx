@@ -165,13 +165,22 @@ export default function SavedQuoteEditor({
       const res = await fetch(`/api/quotes/${id}/pdf`);
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(data.error ?? `Erreur ${res.status}`);
+        const message = data.error ?? `Erreur ${res.status}`;
+        // 4xx here is expected user guidance (no company profile, no client) —
+        // surface it in-app, but don't log it as an exception. Only 5xx is a
+        // genuine failure worth tracking.
+        if (res.status >= 500) {
+          posthog.captureException(new Error(message), { context: "quote_pdf", quote_id: id });
+        }
+        setError(message);
+        return;
       }
       const url = URL.createObjectURL(await res.blob());
       window.open(url, "_blank", "noreferrer");
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
       posthog.capture("quote_pdf_opened", { quote_id: id });
     } catch (err) {
+      // Network failure or unexpected throw — always worth capturing.
       posthog.captureException(err, { context: "quote_pdf", quote_id: id });
       setError(err instanceof Error ? err.message : "Échec de génération du PDF.");
     } finally {

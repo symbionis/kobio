@@ -87,9 +87,18 @@ export function computeLine(line: ExtractedLine): Line {
     // A bare spoken count ("cinq radiateurs") — no formula to evaluate, take it as dictated.
     value = quantity.value;
   } else {
-    throw new Error(
-      `Line "${line.description}" has kind "${quantity.kind}" but no expression and no value.`,
-    );
+    // A measured line (area/linear/…) reached us with neither a formula nor a
+    // dictated count — the quantity never landed in the transcript. Per Hard
+    // Rule #3, flag for review rather than throw: crashing here would lose the
+    // whole quote. value stays null (empty editable field), amount 0 until the
+    // builder fills it in.
+    return {
+      ...line,
+      quantity: { ...quantity, value: null },
+      amount: 0,
+      price_override,
+      needs_review: true,
+    };
   }
 
   return {

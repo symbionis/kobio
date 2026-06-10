@@ -77,19 +77,20 @@ describe("computeLine arithmetic", () => {
     expect(line.amount).toBe(400);
   });
 
-  it("throws when a non-forfait line has neither expression nor value", () => {
-    expect(() =>
-      computeLine({
-        raw_text: "",
-        description: "broken",
-        quantity: { kind: "linear", expression: null, value: null, unit: "ml" },
-        rate: 10,
-        rate_source: "spoken",
-        catalog_match: { candidates: [], confidence: "none" },
-        tax_rate: 8.1,
-        needs_review: false,
-      }),
-    ).toThrow();
+  it("flags for review (no throw) when a measured line has neither expression nor value", () => {
+    const line = computeLine({
+      raw_text: "",
+      description: "broken",
+      quantity: { kind: "linear", expression: null, value: null, unit: "ml" },
+      rate: 10,
+      rate_source: "spoken",
+      catalog_match: { candidates: [], confidence: "none" },
+      tax_rate: 8.1,
+      needs_review: false,
+    });
+    expect(line.quantity.value).toBeNull();
+    expect(line.amount).toBe(0);
+    expect(line.needs_review).toBe(true);
   });
 
   it("never mutates the input line", () => {
