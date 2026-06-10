@@ -93,7 +93,7 @@ export default function FeedbackWidget() {
             </div>
           ) : (
             <>
-              <p className="text-[12.5px] text-zinc-500 mb-3">
+              <p className="text-[14px] leading-snug text-zinc-600 mb-3">
                 Dictez votre retour — il part directement à l'équipe.
               </p>
               <button
@@ -131,7 +131,7 @@ export default function FeedbackWidget() {
       <button
         onClick={() => (open ? close() : setOpen(true))}
         aria-label="Donner un retour"
-        className="w-12 h-12 rounded-full bg-dark text-white shadow-[0_8px_22px_rgba(0,0,0,.25)] flex items-center justify-center hover:bg-black transition"
+        className="w-12 h-12 rounded-full bg-brand text-white shadow-[0_8px_22px_rgba(255,90,20,.30)] flex items-center justify-center hover:bg-brand-dark transition"
       >
         {open ? <X size={20} /> : <MessageSquare size={20} />}
       </button>
