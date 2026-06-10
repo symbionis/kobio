@@ -7,7 +7,7 @@ import {
   View,
   renderToBuffer,
 } from "@react-pdf/renderer";
-import type { ClientRow, CompanyRow } from "../../src/db/types";
+import type { ClientRow, CompanyRow, UserRow } from "../../src/db/types";
 import { formatCHF, totalsFromLines } from "../../src/quote/totals";
 import type { Quote } from "../../src/quote/types";
 
@@ -26,6 +26,8 @@ const s = StyleSheet.create({
   logo: { maxWidth: 160, maxHeight: 64, marginBottom: 8, objectFit: "contain" },
   companyName: { fontSize: 13, fontFamily: "Helvetica-Bold", marginBottom: 2 },
   muted: { color: "#6b7280" },
+  contactBlock: { marginTop: 8 },
+  contactLabel: { fontSize: 8, color: "#6b7280", marginBottom: 1 },
   docTitle: { fontSize: 22, fontFamily: "Helvetica-Bold", color: "#2f6df6" },
   block: { marginBottom: 18 },
   label: { fontSize: 8, color: "#6b7280", marginBottom: 2 },
@@ -66,14 +68,18 @@ function DevisDocument({
   quote,
   vatRate,
   createdAt,
+  user,
 }: {
   company: CompanyRow;
   client: ClientRow;
   quote: Quote;
   vatRate: number | null;
   createdAt: string;
+  user: UserRow | null;
 }) {
   const totals = totalsFromLines(quote.lines, vatRate);
+  const personName = [user?.first_name, user?.last_name].filter(Boolean).join(" ").trim();
+  const personContact = [user?.email, user?.phone].filter(Boolean).join(" · ");
   const dateLabel = createdAt
     ? new Date(createdAt).toLocaleDateString("fr-CH", {
         day: "2-digit",
@@ -93,9 +99,14 @@ function DevisDocument({
               <Text style={s.muted}>{[company.postcode, company.city].filter(Boolean).join(" ")}</Text>
             ) : null}
             {company.country ? <Text style={s.muted}>{company.country}</Text> : null}
-            {company.email ? <Text style={s.muted}>{company.email}</Text> : null}
-            {company.phone ? <Text style={s.muted}>{company.phone}</Text> : null}
             {company.vat_number ? <Text style={s.muted}>TVA {company.vat_number}</Text> : null}
+            {personName || personContact ? (
+              <View style={s.contactBlock}>
+                <Text style={s.contactLabel}>VOTRE CONTACT</Text>
+                {personName ? <Text>{personName}</Text> : null}
+                {personContact ? <Text style={s.muted}>{personContact}</Text> : null}
+              </View>
+            ) : null}
           </View>
           <View style={{ alignItems: "flex-end" }}>
             <Text style={s.docTitle}>DEVIS</Text>
@@ -162,6 +173,7 @@ export async function renderQuotePdf(
   quote: Quote,
   vatRate: number | null,
   createdAt: string,
+  user: UserRow | null,
 ): Promise<Buffer> {
   return renderToBuffer(
     <DevisDocument
@@ -170,6 +182,7 @@ export async function renderQuotePdf(
       quote={quote}
       vatRate={vatRate}
       createdAt={createdAt}
+      user={user}
     />,
   );
 }
