@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOptionalOwner } from "../../../src/db/auth";
-import { getCompany } from "../../../src/db/company";
+import { getUser } from "../../../src/db/users";
 import { buildSlackMessage } from "../../../src/feedback";
 import { audioToTranscript } from "../../../src/llm/audio";
 import { hasOpenRouterKey } from "../../../src/llm/client";
@@ -50,10 +50,10 @@ export async function POST(request: Request): Promise<Response> {
     if (scope) {
       const { data } = await scope.supabase.auth.getUser();
       email = data.user?.email ?? null;
-      const company = await getCompany(scope);
-      greetName = company?.first_name ?? company?.name ?? null;
-      const person = [company?.first_name, company?.last_name].filter(Boolean).join(" ").trim();
-      slackName = person || company?.name || null;
+      const user = await getUser(scope);
+      greetName = user?.first_name ?? null;
+      const person = [user?.first_name, user?.last_name].filter(Boolean).join(" ").trim();
+      slackName = person || null;
     }
 
     const res = await fetch(webhook, {
