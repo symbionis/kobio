@@ -23,6 +23,14 @@ describe("normalizeContact", () => {
     expect(out.name).toBe("Amina Bensassi");
     expect(out.city).toBe("Lausanne");
   });
+
+  it("coerces a non-string field to blank instead of throwing", () => {
+    // The json_schema marks fields required+string, but that isn't a hard
+    // guarantee — a null or omitted field must blank out, not crash.
+    const malformed = { name: null, address: undefined, postcode: "1003", city: "Lausanne" } as unknown as ContactFields;
+    const out = normalizeContact(malformed);
+    expect(out).toEqual({ name: "", address: "", postcode: "1003", city: "Lausanne", country: "" });
+  });
 });
 
 describe("dictationFill", () => {

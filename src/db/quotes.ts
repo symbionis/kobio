@@ -50,7 +50,9 @@ export async function saveQuote(scope: OwnerScope, input: SaveQuoteInput): Promi
     accepted_at: input.accepted_at,
     vat_rate: input.vat_rate,
     // Legacy flag, kept in sync so any path still reading it stays correct.
-    tva_applicable: input.vat_rate != null,
+    // Truthiness (not `!= null`) matches totalsFromLines: a 0% rate applies no
+    // VAT, same as "Aucune" (null), so both resolve to false here.
+    tva_applicable: Boolean(input.vat_rate),
     // Validate centrally so no save path can persist an unknown trade value.
     trade: asTrade(input.trade),
     updated_at: new Date().toISOString(),

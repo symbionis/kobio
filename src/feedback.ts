@@ -5,7 +5,7 @@
  */
 
 export interface FeedbackMeta {
-  /** Builder's name (company profile), null when signed out. */
+  /** Sender's full name (from the users table), null when signed out. */
   name: string | null;
   /** Session e-mail, null when signed out. */
   email: string | null;

@@ -32,15 +32,22 @@ function matchCountry(spoken: string): string {
   return COUNTRIES.find((c) => c.toLowerCase() === q) ?? "";
 }
 
+/** Coerce a model field to a string before trimming. The json_schema marks
+ *  every field required+string, but that's not a hard guarantee — a stray null
+ *  or omitted field would otherwise throw an opaque TypeError. Absent → "". */
+function str(v: unknown): string {
+  return typeof v === "string" ? v.trim() : "";
+}
+
 /** Clean the model's raw output: trim every field, resolve the country to the
  *  known list (unmatched/absent → blank). Never guesses. */
 export function normalizeContact(raw: ContactFields): ContactFields {
   return {
-    name: raw.name.trim(),
-    address: raw.address.trim(),
-    postcode: raw.postcode.trim(),
-    city: raw.city.trim(),
-    country: matchCountry(raw.country),
+    name: str(raw.name),
+    address: str(raw.address),
+    postcode: str(raw.postcode),
+    city: str(raw.city),
+    country: matchCountry(str(raw.country)),
   };
 }
 

@@ -11,8 +11,13 @@ import PhoneInput from "../components/PhoneInput";
  * The "Vous" panel — the person operating the account. Name and phone save to
  * the users table; the e-mail is auth-owned and changed via a one-time code (the
  * same UX as sign-in, but Supabase's email-change flow: updateUser + verifyOtp
- * type "email_change"). Depends on the "Change Email Address" template rendering
- * {{ .Token }} (see docs/solutions/...supabase-email-otp...).
+ * type "email_change"). Two Supabase config dependencies for this one-step flow:
+ *   1. The "Change Email Address" template must render {{ .Token }}, not a magic
+ *      link (same class of gotcha as docs/solutions/...supabase-email-otp...,
+ *      which documents the sign-in template).
+ *   2. "Secure email change" must be OFF — with it ON, Supabase sends a code to
+ *      BOTH the old and new address and needs both, which this flow (one code,
+ *      to the new address) cannot satisfy.
  */
 export default function UserForm({ initial }: { initial: UserRow | null }) {
   const router = useRouter();

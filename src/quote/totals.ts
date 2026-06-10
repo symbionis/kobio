@@ -1,7 +1,8 @@
 /**
- * Read-only running totals for a quote. Per-line tax_rate so mixed-rate offers
- * total correctly; rounded once at the end, not per line, to match the worked
- * example (HT 4362.26 + TVA 353.34 = TTC 4715.60).
+ * Read-only running totals for a quote. A single per-devis VAT rate applies to
+ * the whole HT (since migration 0011 — the builder picks one configured rate or
+ * "Aucune", not per-line); rounded once at the end, not per line, to match the
+ * worked example (HT 4362.26 + TVA 353.34 = TTC 4715.60).
  */
 
 import { round2 } from "./compute";
@@ -10,7 +11,7 @@ import type { Line, Quote } from "./types";
 export interface Totals {
   /** Hors taxe — sum of line amounts. */
   ht: number;
-  /** Sum of line amount × tax_rate. */
+  /** HT × the per-devis vatRate (0 when "Aucune"). */
   tva: number;
   /** Toutes taxes comprises. */
   ttc: number;

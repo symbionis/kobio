@@ -32,6 +32,13 @@ describe("totalsFromLines", () => {
     expect(t.ttc).toBe(4362.26);
   });
 
+  it("treats a 0% rate as no TVA, same as Aucune (HT = TTC)", () => {
+    const t = totalsFromLines([line(1000)], 0);
+    expect(t.ht).toBe(1000);
+    expect(t.tva).toBe(0);
+    expect(t.ttc).toBe(1000);
+  });
+
   it("applies a chosen non-standard rate", () => {
     const t = totalsFromLines([line(1000)], 2.6);
     expect(t.ht).toBe(1000);
