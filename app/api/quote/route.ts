@@ -5,6 +5,7 @@ import { getOptionalOwner } from "../../../src/db/auth";
 import { audioToTranscript } from "../../../src/llm/audio";
 import { hasOpenRouterKey } from "../../../src/llm/client";
 import { extractQuote } from "../../../src/llm/extraction";
+import { captureServerException } from "../../../src/lib/posthog-server";
 import { clientIp, rateLimit } from "../../../src/llm/rate-limit";
 import { finishQuote } from "../../../src/quote/parse";
 import { asTrade } from "../../../src/quote/trades";
@@ -48,6 +49,10 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Service de transcription non configuré." }, { status: 503 });
   }
 
+  // Tie any captured exception to the caller's PostHog person when the client
+  // forwards its distinct id; otherwise the exception is recorded person-less.
+  const distinctId = request.headers.get("x-posthog-distinct-id") ?? undefined;
+
   const contentType = request.headers.get("content-type") ?? "";
 
   // Reprocess path: a JSON body with an (edited) transcript skips STT and
@@ -70,6 +75,7 @@ export async function POST(request: Request): Promise<Response> {
       const quote = finishQuote(extracted);
       return NextResponse.json({ transcript, quote });
     } catch (err) {
+      await captureServerException(err, distinctId, { route: "POST /api/quote", path: "reprocess" });
       const message = err instanceof Error ? err.message : "Erreur inconnue.";
       return NextResponse.json({ error: message }, { status: 502 });
     }
@@ -98,6 +104,7 @@ export async function POST(request: Request): Promise<Response> {
   } catch (err) {
     // Any failure — OpenRouter error, empty transcript, invalid JSON, a bad
     // expression — is surfaced, never returned as a silently-wrong quote.
+    await captureServerException(err, distinctId, { route: "POST /api/quote", path: "audio" });
     const message = err instanceof Error ? err.message : "Erreur inconnue.";
     return NextResponse.json({ error: message }, { status: 502 });
   }

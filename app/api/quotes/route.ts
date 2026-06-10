@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { UnauthorizedError, requireOwner } from "../../../src/db/auth";
+import { captureServer, captureServerException } from "../../../src/lib/posthog-server";
 import { persistQuote } from "../../../src/db/quotes";
 import type { Quote } from "../../../src/quote/types";
 
@@ -42,11 +43,20 @@ export async function POST(request: Request): Promise<Response> {
       transcript: body.transcript ?? null,
       trade: body.trade ?? null,
     });
+    await captureServer(scope.ownerId, "quote_created", {
+      quote_id: saved.id,
+      line_count: body.quote.lines.length,
+      has_client: Boolean(body.client_id),
+      sent,
+      accepted,
+      trade: body.trade ?? null,
+    });
     return NextResponse.json({ id: saved.id }, { status: 201 });
   } catch (err) {
     if (err instanceof UnauthorizedError) {
       return NextResponse.json({ error: "Connexion requise." }, { status: 401 });
     }
+    await captureServerException(err, undefined, { route: "POST /api/quotes" });
     const message = err instanceof Error ? err.message : "Erreur d'enregistrement.";
     return NextResponse.json({ error: message }, { status: 500 });
   }

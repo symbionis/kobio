@@ -1,5 +1,6 @@
 "use client";
 
+import posthog from "posthog-js";
 import { useEffect, useState } from "react";
 import { type ContactFields, dictationFill } from "../../src/contact";
 import { cn } from "../lib/cn";
@@ -93,6 +94,7 @@ export default function ClientFormModal({ open, initialName = "", onClose, onCre
       });
       const data = (await res.json()) as { client?: { id: string; name: string }; error?: string };
       if (!res.ok || !data.client) throw new Error(data.error ?? `Erreur ${res.status}`);
+      posthog.capture("client_created", { client_id: data.client.id });
       onCreated({ id: data.client.id, name: data.client.name });
       onClose();
     } catch (err) {

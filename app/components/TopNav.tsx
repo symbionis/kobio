@@ -3,6 +3,7 @@
 import { FileCheck, LogOut, Menu, Mic, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import posthog from "posthog-js";
 import { useEffect, useState } from "react";
 import { browserClient, hasBrowserAuthConfig } from "../../src/db/supabase/browser";
 import { cn } from "../lib/cn";
@@ -102,6 +103,10 @@ export default function TopNav() {
                   <span className="max-w-[240px] truncate">{auth.email}</span>
                   <a
                     href="/auth/signout"
+                    onClick={() => {
+                      posthog.capture("user_signed_out");
+                      posthog.reset();
+                    }}
                     className="inline-flex items-center gap-1.5 text-zinc-600 hover:text-black transition"
                   >
                     <LogOut size={15} /> Déconnexion

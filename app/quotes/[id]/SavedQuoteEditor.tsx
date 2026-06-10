@@ -2,6 +2,7 @@
 
 import { ArrowLeft, Check, Download, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { useEffect, useRef, useState } from "react";
 import type { VatRate } from "../../../src/db/types";
 import type { Quote } from "../../../src/quote/types";
@@ -169,7 +170,9 @@ export default function SavedQuoteEditor({
       const url = URL.createObjectURL(await res.blob());
       window.open(url, "_blank", "noreferrer");
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      posthog.capture("quote_pdf_opened", { quote_id: id });
     } catch (err) {
+      posthog.captureException(err, { context: "quote_pdf", quote_id: id });
       setError(err instanceof Error ? err.message : "Échec de génération du PDF.");
     } finally {
       setPdfBusy(false);
@@ -239,6 +242,7 @@ export default function SavedQuoteEditor({
                 setSentStamp(null);
                 setAcceptedStamp(null);
               }
+              posthog.capture("quote_status_changed", { quote_id: id, status: next ? "sent" : "draft" });
               return next;
             })
           }
@@ -342,6 +346,7 @@ export default function SavedQuoteEditor({
                   setIsAccepted((v) => {
                     const next = !v;
                     setAcceptedStamp(next ? (acceptedStamp ?? new Date().toISOString()) : null);
+                    posthog.capture("quote_status_changed", { quote_id: id, status: next ? "accepted" : "sent" });
                     return next;
                   })
                 }

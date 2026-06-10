@@ -2,6 +2,7 @@
 
 import { FileText, Mic, Shield, Sparkles, Square, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { VatRate } from "../../src/db/types";
@@ -164,6 +165,7 @@ export default function NewQuotePage() {
       recorderRef.current = recorder;
       recorder.start();
       setStatus("recording");
+      posthog.capture("quote_recording_started", { trade: trade || null });
     } catch {
       setError("Micro inaccessible — autorisez l'accès au microphone et réessayez.");
       setStatus("error");
@@ -180,13 +182,29 @@ export default function NewQuotePage() {
       const form = new FormData();
       form.append("audio", blob, blob instanceof File ? blob.name : "note.webm");
       if (trade) form.append("trade", trade);
-      const res = await fetch("/api/quote", { method: "POST", body: form });
+      let phId: string | undefined;
+      try {
+        phId = posthog.get_distinct_id();
+      } catch {
+        /* posthog not initialised (no key) — send without the header */
+      }
+      const res = await fetch("/api/quote", {
+        method: "POST",
+        body: form,
+        headers: phId ? { "x-posthog-distinct-id": phId } : undefined,
+      });
       const data = (await res.json()) as QuoteResponse & { error?: string };
       if (!res.ok) throw new Error(data.error ?? `Erreur ${res.status}`);
       setTranscript(data.transcript);
       setQuote(data.quote);
       setStatus("done");
+      posthog.capture("quote_parsed", {
+        trade: trade || null,
+        line_count: data.quote.lines.length,
+        review_notes: data.quote.review_notes?.length ?? 0,
+      });
     } catch (err) {
+      posthog.captureException(err, { context: "quote_parse" });
       setError(err instanceof Error ? err.message : "Échec du traitement de la note.");
       setStatus("error");
     }
@@ -253,6 +271,7 @@ export default function NewQuotePage() {
       }
       const data = (await res.json()) as { id?: string; error?: string };
       if (!res.ok || !data.id) throw new Error(data.error ?? `Erreur ${res.status}`);
+      posthog.capture("quote_saved", { quote_id: data.id, trade: trade || null });
       router.push(`/quotes/${data.id}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Échec de l'enregistrement.";
