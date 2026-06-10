@@ -1,12 +1,13 @@
 "use client";
 
-import { FileCheck, LogOut, Menu, Mic, X } from "lucide-react";
+import { LogOut, Menu, Mic, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import posthog from "posthog-js";
 import { useEffect, useState } from "react";
 import { browserClient, hasBrowserAuthConfig } from "../../src/db/supabase/browser";
 import { cn } from "../lib/cn";
+import KMark from "./KMark";
 
 const LINKS = [
   { href: "/quotes", label: "Devis" },
@@ -51,7 +52,7 @@ export default function TopNav() {
         {/* Left: logo */}
         <Link href="/" className="flex items-center gap-3 shrink-0 justify-self-start">
           <div className="w-10 h-10 rounded-xl bg-dark text-[#ffefe0] flex items-center justify-center shadow-sm">
-            <FileCheck size={20} />
+            <KMark size={22} />
           </div>
           <div className="font-display text-[22px] tracking-tight leading-none">Kobio</div>
         </Link>
