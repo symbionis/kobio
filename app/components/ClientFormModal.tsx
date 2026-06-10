@@ -73,7 +73,8 @@ export default function ClientFormModal({ open, initialName = "", onClose, onCre
 
   async function create() {
     const name = draft.name.trim();
-    if (!name) return;
+    const reachable = draft.email.trim() !== "" || draft.phone.trim() !== "";
+    if (!name || !reachable) return;
     setBusy(true);
     setError(null);
     try {
@@ -106,6 +107,10 @@ export default function ClientFormModal({ open, initialName = "", onClose, onCre
   const label = "flex flex-col gap-1 text-[12.5px] text-zinc-500";
   const warm = "border-[#f3d39b] bg-[#fffaf0]"; // voice-filled, awaiting review
 
+  // A client needs a name and at least one way to reach them (e-mail or phone).
+  const hasContact = draft.email.trim() !== "" || draft.phone.trim() !== "";
+  const canSave = draft.name.trim() !== "" && hasContact;
+
   return (
     <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4">
       <div className="w-full max-w-md rounded-[24px] bg-white border border-line shadow-soft p-6">
@@ -120,56 +125,58 @@ export default function ClientFormModal({ open, initialName = "", onClose, onCre
           </button>
         </div>
 
-        <div className="mb-4">
-          <AddressDictation onResult={onDictation} />
-        </div>
-
         <div className="flex flex-col gap-3">
-          <label className={label}>
-            Nom
-            <input
-              autoFocus
-              value={draft.name}
-              onChange={(e) => set("name", e.target.value)}
-              placeholder="Nom du client"
-              className={cn(input, highlighted.has("name") && warm)}
-            />
-          </label>
-          <label className={label}>
-            Adresse
-            <input
-              value={draft.address}
-              onChange={(e) => set("address", e.target.value)}
-              className={cn(input, highlighted.has("address") && warm)}
-            />
-          </label>
-          <div className="grid grid-cols-[100px_1fr] gap-3">
+          {/* Voice-fillable address group — the recorder and the fields it fills,
+              boxed together so the association is visible. */}
+          <div className="rounded-2xl border border-line bg-paper-2 p-4 flex flex-col gap-3">
+            <AddressDictation onResult={onDictation} />
             <label className={label}>
-              NPA
+              Nom
               <input
-                value={draft.postcode}
-                onChange={(e) => set("postcode", e.target.value)}
-                className={cn(input, highlighted.has("postcode") && warm)}
+                autoFocus
+                value={draft.name}
+                onChange={(e) => set("name", e.target.value)}
+                placeholder="Nom du client"
+                className={cn(input, highlighted.has("name") && warm)}
               />
             </label>
             <label className={label}>
-              Ville
+              Adresse
               <input
-                value={draft.city}
-                onChange={(e) => set("city", e.target.value)}
-                className={cn(input, highlighted.has("city") && warm)}
+                value={draft.address}
+                onChange={(e) => set("address", e.target.value)}
+                className={cn(input, highlighted.has("address") && warm)}
               />
             </label>
+            <div className="grid grid-cols-[100px_1fr] gap-3">
+              <label className={label}>
+                NPA
+                <input
+                  value={draft.postcode}
+                  onChange={(e) => set("postcode", e.target.value)}
+                  className={cn(input, highlighted.has("postcode") && warm)}
+                />
+              </label>
+              <label className={label}>
+                Ville
+                <input
+                  value={draft.city}
+                  onChange={(e) => set("city", e.target.value)}
+                  className={cn(input, highlighted.has("city") && warm)}
+                />
+              </label>
+            </div>
+            <div className={label}>
+              Pays
+              <Select
+                value={draft.country}
+                options={COUNTRY_OPTIONS}
+                onChange={(v) => set("country", v)}
+                highlight={highlighted.has("country")}
+              />
+            </div>
           </div>
-          <div className={label}>
-            Pays
-            <Select
-              value={draft.country}
-              options={COUNTRY_OPTIONS}
-              onChange={(v) => set("country", v)}
-              highlight={highlighted.has("country")}
-            />
-          </div>
+
           <label className={label}>
             E-mail
             <input
@@ -185,12 +192,17 @@ export default function ClientFormModal({ open, initialName = "", onClose, onCre
           </div>
         </div>
 
+        {draft.name.trim() !== "" && !hasContact && (
+          <p className="mt-3 text-[12.5px] text-zinc-500">
+            Renseignez un e-mail ou un téléphone pour enregistrer.
+          </p>
+        )}
         {error && <p className="mt-3 text-[13px] text-[#b91c1c]">{error}</p>}
 
         <div className="flex gap-2 mt-5">
           <button
             onClick={create}
-            disabled={busy || !draft.name.trim()}
+            disabled={busy || !canSave}
             className="flex-1 rounded-xl bg-dark text-white py-2.5 text-[14px] font-[650] hover:bg-black transition disabled:opacity-50"
           >
             {busy ? "Création…" : "Créer le client"}
