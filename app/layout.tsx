@@ -23,9 +23,25 @@ const fragment = Fragment_Mono({
   display: "swap",
 });
 
+// metadataBase makes the file-based OG/Twitter images (app/opengraph-image.png,
+// app/twitter-image.png — auto-detected by Next) resolve to absolute URLs.
 export const metadata: Metadata = {
+  metadataBase: new URL("https://kobio.to"),
   title: "Kobio — devis vocal",
-  description: "Note vocale → devis.",
+  description: "La note vocale de chantier qui devient un devis pro, en 2 minutes.",
+  openGraph: {
+    type: "website",
+    locale: "fr_FR",
+    url: "https://kobio.to",
+    siteName: "Kobio",
+    title: "Kobio — Parlez. On chiffre. Vous envoyez.",
+    description: "La note vocale de chantier qui devient un devis pro, en 2 minutes.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Kobio — Parlez. On chiffre. Vous envoyez.",
+    description: "La note vocale de chantier qui devient un devis pro, en 2 minutes.",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
