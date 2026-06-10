@@ -217,7 +217,7 @@ export default function HomePage() {
       <section className="max-w-6xl mx-auto px-4 sm:px-7 lg:px-10 py-16">
         <div className="grid lg:grid-cols-2 gap-10 items-start">
           <div>
-            <h3 className="font-display text-[34px] tracking-tight">Pensé pour les gars du terrain</h3>
+            <h3 className="font-display text-[34px] tracking-tight">Pensé pour les vrais du terrain</h3>
             <ul className="mt-5 space-y-3 text-[15px] text-zinc-700">
               {TERRAIN.map((t) => (
                 <li key={t} className="flex gap-2">
