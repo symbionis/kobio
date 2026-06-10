@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { catalogToPromptText } from "../../../src/catalog";
 import { listArticles } from "../../../src/db/articles";
 import { getOptionalOwner } from "../../../src/db/auth";
-import { hasOpenRouterKey, transcribeAudio } from "../../../src/llm/client";
+import { audioToTranscript } from "../../../src/llm/audio";
+import { hasOpenRouterKey } from "../../../src/llm/client";
 import { extractQuote } from "../../../src/llm/extraction";
+import { captureServerException } from "../../../src/lib/posthog-server";
 import { clientIp, rateLimit } from "../../../src/llm/rate-limit";
-import { AMINA_EXTRACT, AMINA_TRANSCRIPT } from "../../../src/quote/fixture";
 import { finishQuote } from "../../../src/quote/parse";
 import { asTrade } from "../../../src/quote/trades";
-import type { ExtractedQuote } from "../../../src/quote/types";
 
 // Transcription, the OpenRouter calls, and the deterministic core all run in Node.
 export const runtime = "nodejs";
@@ -20,16 +20,10 @@ export const runtime = "nodejs";
  * per IP because it fronts paid STT + LLM calls. Catalog candidates are the
  * signed-in owner's articles scoped to the selected trade; anonymous callers get
  * no candidates (the spoken price still wins either way). Without
- * OPENROUTER_API_KEY the route returns the canonical Amina fixture so the loop
- * demos keyless. Compute + cross-line check are always the real core.
+ * OPENROUTER_API_KEY the route fails loudly (503) — it never fabricates a quote,
+ * because a made-up devis is a wrong number reaching a client. Compute +
+ * cross-line check are always the real core.
  */
-
-/** "audio/webm;codecs=opus" → "webm"; the format field Whisper expects. */
-function audioFormat(mime: string): string {
-  const sub = mime.split(";")[0].trim().split("/")[1] ?? "webm";
-  const alias: Record<string, string> = { "x-m4a": "m4a", mp4: "m4a", mpeg: "mp3", "x-wav": "wav" };
-  return alias[sub] ?? sub;
-}
 
 /** Candidate catalog text for the prompt: the owner's articles for the selected
  *  trade, or "(catalogue indisponible)" when anonymous. */
@@ -47,6 +41,17 @@ export async function POST(request: Request): Promise<Response> {
   if (!rateLimit(`quote:${clientIp(request)}`, 12, 60_000)) {
     return NextResponse.json({ error: "Trop de requêtes — réessayez dans une minute." }, { status: 429 });
   }
+
+  // No transcription backend → fail loudly. We never fabricate a quote; a
+  // made-up devis (and its made-up contact) is the exact failure mode the hard
+  // rules forbid.
+  if (!hasOpenRouterKey()) {
+    return NextResponse.json({ error: "Service de transcription non configuré." }, { status: 503 });
+  }
+
+  // Tie any captured exception to the caller's PostHog person when the client
+  // forwards its distinct id; otherwise the exception is recorded person-less.
+  const distinctId = request.headers.get("x-posthog-distinct-id") ?? undefined;
 
   const contentType = request.headers.get("content-type") ?? "";
 
@@ -66,12 +71,11 @@ export async function POST(request: Request): Promise<Response> {
       return NextResponse.json({ error: "Transcription vide." }, { status: 400 });
     }
     try {
-      const extracted = hasOpenRouterKey()
-        ? await extractQuote(transcript, await candidateCatalogText(trade))
-        : AMINA_EXTRACT;
+      const extracted = await extractQuote(transcript, await candidateCatalogText(trade));
       const quote = finishQuote(extracted);
-      return NextResponse.json({ transcript, quote, stubbed: !hasOpenRouterKey() });
+      return NextResponse.json({ transcript, quote });
     } catch (err) {
+      await captureServerException(err, distinctId, { route: "POST /api/quote", path: "reprocess" });
       const message = err instanceof Error ? err.message : "Erreur inconnue.";
       return NextResponse.json({ error: message }, { status: 502 });
     }
@@ -89,26 +93,18 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    let transcript: string;
-    let extracted: ExtractedQuote;
-
-    if (hasOpenRouterKey()) {
-      if (!audio || audio.size === 0) {
-        return NextResponse.json({ error: "Aucun audio reçu." }, { status: 400 });
-      }
-      const base64 = Buffer.from(await audio.arrayBuffer()).toString("base64");
-      transcript = await transcribeAudio(base64, audioFormat(audio.type), "fr");
-      extracted = await extractQuote(transcript, await candidateCatalogText(trade));
-    } else {
-      transcript = AMINA_TRANSCRIPT;
-      extracted = AMINA_EXTRACT;
+    if (!audio || audio.size === 0) {
+      return NextResponse.json({ error: "Aucun audio reçu." }, { status: 400 });
     }
+    const transcript = await audioToTranscript(audio);
+    const extracted = await extractQuote(transcript, await candidateCatalogText(trade));
 
     const quote = finishQuote(extracted); // compute + cross-line check (real)
-    return NextResponse.json({ transcript, quote, stubbed: !hasOpenRouterKey() });
+    return NextResponse.json({ transcript, quote });
   } catch (err) {
     // Any failure — OpenRouter error, empty transcript, invalid JSON, a bad
     // expression — is surfaced, never returned as a silently-wrong quote.
+    await captureServerException(err, distinctId, { route: "POST /api/quote", path: "audio" });
     const message = err instanceof Error ? err.message : "Erreur inconnue.";
     return NextResponse.json({ error: message }, { status: 502 });
   }

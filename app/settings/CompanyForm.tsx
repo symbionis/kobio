@@ -1,9 +1,18 @@
 "use client";
 
+import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type ChangeEvent, type FormEvent, useState } from "react";
 import type { CompanyRow } from "../../src/db/types";
 import { TRADES } from "../../src/quote/trades";
+import Select from "../components/Select";
+
+/** VAT-rate rows are edited as strings (the rate field can be mid-typing/empty)
+ *  and parsed to numbers only on submit. */
+interface RateRow {
+  label: string;
+  rate: string;
+}
 
 export default function CompanyForm({ initial }: { initial: CompanyRow | null }) {
   const router = useRouter();
@@ -13,9 +22,10 @@ export default function CompanyForm({ initial }: { initial: CompanyRow | null })
   const [postcode, setPostcode] = useState(initial?.postcode ?? "");
   const [city, setCity] = useState(initial?.city ?? "");
   const [country, setCountry] = useState(initial?.country ?? "Suisse");
-  const [email, setEmail] = useState(initial?.email ?? "");
-  const [phone, setPhone] = useState(initial?.phone ?? "");
   const [vat, setVat] = useState(initial?.vat_number ?? "");
+  const [rates, setRates] = useState<RateRow[]>(() =>
+    (initial?.vat_rates ?? []).map((r) => ({ label: r.label, rate: String(r.rate) })),
+  );
   const [logo, setLogo] = useState<string | null>(initial?.logo_ref ?? null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -34,12 +44,25 @@ export default function CompanyForm({ initial }: { initial: CompanyRow | null })
     reader.readAsDataURL(file);
   }
 
+  function addRate() {
+    setRates((rs) => [...rs, { label: "", rate: "" }]);
+  }
+  function updateRate(i: number, patch: Partial<RateRow>) {
+    setRates((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  }
+  function removeRate(i: number) {
+    setRates((rs) => rs.filter((_, idx) => idx !== i));
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError(null);
     setSaved(false);
     try {
+      const vat_rates = rates
+        .map((r) => ({ label: r.label.trim(), rate: Number(r.rate.replace(",", ".")) }))
+        .filter((r) => Number.isFinite(r.rate) && r.rate >= 0);
       const res = await fetch("/api/company", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -49,9 +72,8 @@ export default function CompanyForm({ initial }: { initial: CompanyRow | null })
           postcode: postcode || null,
           city: city || null,
           country: country || null,
-          email: email || null,
-          phone: phone || null,
           vat_number: vat || null,
+          vat_rates,
           logo_ref: logo,
           trade: trade || null,
         }),
@@ -79,17 +101,14 @@ export default function CompanyForm({ initial }: { initial: CompanyRow | null })
           Nom de l'entreprise
           <input className={input} value={name} onChange={(e) => setName(e.target.value)} required />
         </label>
-        <label className={field}>
+        <div className={field}>
           Métier
-          <select className={input} value={trade} onChange={(e) => setTrade(e.target.value)}>
-            <option value="">— Choisir —</option>
-            {TRADES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-        </label>
+          <Select
+            value={trade}
+            options={TRADES.map((t) => ({ value: t.value, label: t.label }))}
+            onChange={setTrade}
+          />
+        </div>
         <label className={field}>
           Adresse
           <input className={input} value={address} onChange={(e) => setAddress(e.target.value)} />
@@ -108,22 +127,66 @@ export default function CompanyForm({ initial }: { initial: CompanyRow | null })
           Pays
           <input className={input} value={country} onChange={(e) => setCountry(e.target.value)} />
         </label>
-        <div className="grid grid-cols-2 gap-4">
+        <fieldset className="rounded-2xl border border-line bg-paper-2 p-4 flex flex-col gap-4">
+          <legend className="px-1 text-[12.5px] font-[650] text-zinc-600">TVA</legend>
+
           <label className={field}>
-            E-mail
-            <input className={input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <span>
+              N° TVA <span className="text-zinc-400">(figure sur le PDF)</span>
+            </span>
+            <input className={input} value={vat} onChange={(e) => setVat(e.target.value)} />
           </label>
-          <label className={field}>
-            Téléphone
-            <input className={input} value={phone} onChange={(e) => setPhone(e.target.value)} />
-          </label>
-        </div>
-        <label className={field}>
-          <span>
-            N° TVA <span className="text-zinc-400">(active la TVA sur les devis)</span>
-          </span>
-          <input className={input} value={vat} onChange={(e) => setVat(e.target.value)} />
-        </label>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-[12.5px] text-zinc-500">
+              Taux de TVA <span className="text-zinc-400">(choisis sur chaque devis)</span>
+            </span>
+            {rates.length === 0 && (
+              <p className="text-[12.5px] text-zinc-400">
+                Aucun taux. Ajoutez vos taux usuels (ex. Normal 8.1, Réduit 2.6).
+              </p>
+            )}
+            {rates.map((r, i) => (
+              <div key={i} className="flex items-center gap-2 w-full">
+                <input
+                  className={`${input} min-w-0 flex-[0_1_55%]`}
+                  value={r.label}
+                  placeholder="Libellé (ex. Normal)"
+                  onChange={(e) => updateRate(i, { label: e.target.value })}
+                />
+                <div className="relative w-[76px] shrink-0 ml-auto">
+                  <input
+                    className={`${input} w-full pr-6 text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={r.rate}
+                    placeholder="8.1"
+                    onChange={(e) => updateRate(i, { rate: e.target.value })}
+                  />
+                  <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[13px] text-zinc-400">
+                    %
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeRate(i)}
+                  aria-label="Supprimer le taux"
+                  className="shrink-0 text-zinc-400 hover:text-red-600 transition p-1"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addRate}
+              className="self-start inline-flex items-center gap-1.5 text-[13px] font-[600] text-zinc-600 border border-dashed border-zinc-300 rounded-xl px-3 py-2 hover:border-zinc-400 hover:text-black transition"
+            >
+              <Plus size={15} /> Ajouter un taux
+            </button>
+          </div>
+        </fieldset>
         <label className={field}>
           Logo (max 500 Ko)
           <input

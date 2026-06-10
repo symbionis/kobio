@@ -36,24 +36,18 @@ export default async function ProductsPage() {
         </div>
       ) : (
         <section className="mt-6 rounded-[24px] bg-white shadow-soft border border-line overflow-hidden">
-          <div className="grid grid-cols-[1fr_90px_120px] gap-4 px-5 py-3 border-b border-zinc-100 text-[11px] font-mono-label uppercase tracking-wide text-zinc-500">
-            <span>Article</span>
-            <span>Code</span>
-            <span className="text-right">Prix</span>
-          </div>
           <div className="divide-y divide-zinc-100">
             {articles.map((a) => (
-              <div
-                key={a.id}
-                className="grid grid-cols-[1fr_90px_120px] gap-4 items-center px-5 py-3.5"
-              >
-                <span className="font-[600] text-[15px] truncate min-w-0">
-                  {a.name || "Sans nom"}
-                </span>
-                <span className="font-mono-label text-[12.5px] text-zinc-500">{a.code || "—"}</span>
-                <span className="text-right tabular-nums font-[650] text-[15px]">
-                  {a.price != null ? `CHF ${CHF(a.price)}` : <span className="text-zinc-400">—</span>}
-                </span>
+              <div key={a.id} className="px-5 py-3.5">
+                <div className="font-[600] text-[15px] leading-snug">{a.name || "Sans nom"}</div>
+                <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-zinc-100 px-2.5 py-1.5">
+                  <span className="font-mono-label text-[12.5px] text-zinc-500 whitespace-nowrap">
+                    {a.code || "—"}
+                  </span>
+                  <span className="tabular-nums font-[550] text-[14px] whitespace-nowrap">
+                    {a.price != null ? `CHF ${CHF(a.price)}` : <span className="text-zinc-400">—</span>}
+                  </span>
+                </div>
               </div>
             ))}
           </div>

@@ -1,11 +1,16 @@
 "use client";
 
-import { Check, Download } from "lucide-react";
-import Link from "next/link";
+import { ArrowLeft, Check, Download, Lock } from "lucide-react";
+import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { useEffect, useRef, useState } from "react";
+import type { VatRate } from "../../../src/db/types";
 import type { Quote } from "../../../src/quote/types";
+import ClientFormModal from "../../components/ClientFormModal";
+import ClientSelect from "../../components/ClientSelect";
 import QuoteEditor from "../../components/QuoteEditor";
 import TranscriptPanel from "../../components/TranscriptPanel";
+import { fmtDateTime } from "../../lib/dates";
 
 interface ClientOption {
   id: string;
@@ -20,8 +25,17 @@ interface Props {
   trade: string | null;
   clientId: string | null;
   sent: boolean;
-  tvaApplicable: boolean;
-  companyHasVat: boolean;
+  /** Client validated/accepted the devis. */
+  accepted: boolean;
+  /** Stored VAT rate for this devis (null = Aucune). */
+  vatRate: number | null;
+  /** The builder's configured VAT rates, offered as a choice. */
+  vatRates: VatRate[];
+  /** When the devis was created (ISO) — shown in the header and on the PDF. */
+  createdAt: string;
+  /** Stored Envoyé / Validé timestamps (ISO), or null. */
+  sentAt: string | null;
+  acceptedAt: string | null;
   clients: ClientOption[];
 }
 
@@ -38,19 +52,26 @@ export default function SavedQuoteEditor({
   trade,
   clientId,
   sent,
-  tvaApplicable,
-  companyHasVat,
+  accepted,
+  vatRate,
+  vatRates,
+  createdAt,
+  sentAt,
+  acceptedAt,
   clients,
 }: Props) {
+  const router = useRouter();
   const [quote, setQuote] = useState<Quote>(initialQuote);
   const [transcript, setTranscript] = useState<string>(initialTranscript);
   const [client, setClient] = useState<string>(clientId ?? "");
   const [clientList, setClientList] = useState<ClientOption[]>(clients);
   const [creatingClient, setCreatingClient] = useState(false);
-  const [newClientName, setNewClientName] = useState(initialQuote.contact.spoken_name ?? "");
-  const [clientBusy, setClientBusy] = useState(false);
+  const [createName, setCreateName] = useState("");
   const [isSent, setIsSent] = useState<boolean>(sent);
-  const [tva, setTva] = useState<boolean>(tvaApplicable);
+  const [isAccepted, setIsAccepted] = useState<boolean>(accepted);
+  const [sentStamp, setSentStamp] = useState<string | null>(sentAt);
+  const [acceptedStamp, setAcceptedStamp] = useState<string | null>(acceptedAt);
+  const [selectedRate, setSelectedRate] = useState<number | null>(vatRate);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -72,15 +93,23 @@ export default function SavedQuoteEditor({
           quote,
           client_id: client || null,
           sent: isSent,
-          tva_applicable: tva,
+          accepted: isAccepted,
+          vat_rate: selectedRate,
           transcript,
           trade,
         }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(data.error ?? `Erreur ${res.status}`);
-      setSavedAt(new Date().toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" }));
+      const now = new Date();
+      const date = now.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
+      const time = now.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
+      setSavedAt(`${date} à ${time}`);
       setSaveState("saved");
+      // Invalidate the client Router Cache so the list views (/quotes, /clients)
+      // reflect this edit — e.g. a detached client falling back to the dictated
+      // contact. router.refresh() preserves this editor's React state.
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Échec de l'enregistrement.");
       setSaveState("error");
@@ -101,7 +130,7 @@ export default function SavedQuoteEditor({
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quote, transcript, client, isSent, tva]);
+  }, [quote, transcript, client, isSent, isAccepted, selectedRate]);
 
   // Re-run extraction on the edited transcript, then let autosave persist it.
   async function reprocess() {
@@ -141,124 +170,102 @@ export default function SavedQuoteEditor({
       const url = URL.createObjectURL(await res.blob());
       window.open(url, "_blank", "noreferrer");
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      posthog.capture("quote_pdf_opened", { quote_id: id });
     } catch (err) {
+      posthog.captureException(err, { context: "quote_pdf", quote_id: id });
       setError(err instanceof Error ? err.message : "Échec de génération du PDF.");
     } finally {
       setPdfBusy(false);
     }
   }
 
-  // Create a client on the fly (name only — enrich later in Clients), then attach
-  // it. Prefilled from the dictated contact so the spoken name becomes the client.
-  async function createClient() {
-    const name = newClientName.trim();
-    if (!name) return;
-    setClientBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/clients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      const data = (await res.json()) as { client?: { id: string; name: string }; error?: string };
-      if (!res.ok || !data.client) throw new Error(data.error ?? `Erreur ${res.status}`);
-      const created = { id: data.client.id, name: data.client.name };
-      setClientList((list) =>
-        [...list, created].sort((a, b) => a.name.localeCompare(b.name, "fr")),
-      );
-      setClient(created.id);
-      setCreatingClient(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Échec de la création du client.");
-    } finally {
-      setClientBusy(false);
-    }
+  // Open the shared create-client popover, prefilling the name (the dictated contact).
+  function openCreate(name: string) {
+    setCreateName(name);
+    setCreatingClient(true);
   }
 
-  const selectInput =
-    "w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-[14px] bg-white outline-none focus:ring-2 focus:ring-[#ffbb94]";
+  // The modal created a client — add it to the list and attach it to this devis.
+  function onClientCreated(created: { id: string; name: string }) {
+    setClientList((list) => [...list, created].sort((a, b) => a.name.localeCompare(b.name, "fr")));
+    setClient(created.id);
+  }
+
+  const createdLabel = createdAt
+    ? new Date(createdAt).toLocaleDateString("fr-CH", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+    : null;
 
   const controls = (
     <>
       <div className="flex flex-col gap-1.5">
-        <label className="flex flex-col gap-1 text-[12px] font-mono-label text-zinc-500">
+        <div className="flex flex-col gap-1 text-[12px] font-mono-label text-zinc-500">
           CLIENT
-          <select
-            value={client}
-            onChange={(e) => {
-              if (e.target.value === "__new__") {
-                setNewClientName(quote.contact.spoken_name ?? "");
-                setCreatingClient(true);
-              } else {
-                setClient(e.target.value);
-              }
-            }}
-            className={selectInput}
-          >
-            <option value="">— Aucun —</option>
-            {clientList.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-            <option value="__new__">+ Nouveau client…</option>
-          </select>
-        </label>
+          {isSent ? (
+            <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-[14px] text-zinc-700">
+              {clientList.find((c) => c.id === client)?.name ?? "— Aucun —"}
+            </div>
+          ) : (
+            <ClientSelect
+              value={client}
+              options={clientList}
+              onChange={setClient}
+              onCreateNew={() => openCreate(quote.contact.spoken_name ?? "")}
+            />
+          )}
+        </div>
 
         {/* Dictated contact → client shortcut. */}
-        {!client && !creatingClient && quote.contact.spoken_name && (
+        {!isSent && !client && !creatingClient && quote.contact.spoken_name && (
           <button
-            onClick={() => {
-              setNewClientName(quote.contact.spoken_name);
-              setCreatingClient(true);
-            }}
+            onClick={() => openCreate(quote.contact.spoken_name)}
             className="text-left text-[12.5px] text-brand hover:text-brand-dark transition"
           >
             + Créer « {quote.contact.spoken_name} » comme client
           </button>
         )}
-
-        {creatingClient && (
-          <div className="rounded-xl border border-line bg-paper-2 p-3 flex flex-col gap-2">
-            <input
-              autoFocus
-              value={newClientName}
-              onChange={(e) => setNewClientName(e.target.value)}
-              placeholder="Nom du client"
-              className={selectInput}
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={createClient}
-                disabled={clientBusy || !newClientName.trim()}
-                className="flex-1 rounded-xl bg-dark text-white py-2 text-[13px] font-[650] hover:bg-black transition disabled:opacity-50"
-              >
-                {clientBusy ? "Création…" : "Créer + attacher"}
-              </button>
-              <button
-                onClick={() => setCreatingClient(false)}
-                className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-[13px] hover:bg-zinc-50 transition"
-              >
-                Annuler
-              </button>
-            </div>
-            <p className="text-[11.5px] text-zinc-500">
-              Complétez l'adresse plus tard dans Clients.
-            </p>
-          </div>
-        )}
       </div>
 
-      <label className="flex items-center gap-2 text-[14px] text-zinc-700 cursor-pointer">
-        <input
-          type="checkbox"
-          className="accent-brand"
-          checked={isSent}
-          onChange={(e) => setIsSent(e.target.checked)}
-        />
-        Marquer comme envoyé
-      </label>
+      <div>
+        <button
+          disabled={isAccepted}
+          onClick={() =>
+            setIsSent((v) => {
+              const next = !v;
+              if (next) {
+                setSentStamp((s) => s ?? new Date().toISOString());
+              } else {
+                setIsAccepted(false); // un-sending drops the accepted state
+                setSentStamp(null);
+                setAcceptedStamp(null);
+              }
+              posthog.capture("quote_status_changed", { quote_id: id, status: next ? "sent" : "draft" });
+              return next;
+            })
+          }
+          className={`w-full inline-flex items-center justify-center gap-2 rounded-xl py-3 text-[14px] font-[650] transition disabled:cursor-not-allowed disabled:opacity-70 ${
+            isSent
+              ? "bg-emerald-600 text-white hover:bg-emerald-700"
+              : "bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+          }`}
+        >
+          {isSent ? (
+            <>
+              <Check size={16} /> Envoyé
+            </>
+          ) : (
+            "Marquer comme envoyé"
+          )}
+        </button>
+        {isSent && sentStamp && (
+          <p className="mt-1.5 text-center text-[12px] text-zinc-500">
+            Envoyé le {fmtDateTime(sentStamp)}
+          </p>
+        )}
+      </div>
 
       {client ? (
         <button
@@ -279,9 +286,19 @@ export default function SavedQuoteEditor({
   return (
     <>
       <div className="flex items-center justify-between gap-3 mb-5">
-        <Link className="text-[13.5px] text-zinc-600 hover:text-black transition" href="/quotes">
-          ← Bibliothèque
-        </Link>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            aria-label="Retour"
+            className="inline-flex items-center justify-center w-9 h-9 rounded-full border border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-black transition"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          {createdLabel && (
+            <span className="text-[13px] text-zinc-500">Créé le {createdLabel}</span>
+          )}
+        </div>
         <span className="text-[13px] min-h-[20px]">
           {saveState === "saving" && (
             <span className="flex items-center gap-1.5 text-zinc-500">
@@ -291,7 +308,7 @@ export default function SavedQuoteEditor({
           )}
           {saveState === "saved" && savedAt && (
             <span className="flex items-center gap-1 text-emerald-700">
-              <Check size={14} /> Enregistré à {savedAt}
+              <Check size={14} /> Enregistré le {savedAt}
             </span>
           )}
           {saveState === "error" && (
@@ -308,21 +325,66 @@ export default function SavedQuoteEditor({
         </div>
       )}
 
+      {isAccepted && (
+        <div className="mb-4 flex items-center gap-2 rounded-[16px] bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 text-[13.8px]">
+          <Lock size={15} className="shrink-0" /> Devis validé — lecture seule. Annulez la validation
+          pour modifier.
+        </div>
+      )}
+
       <QuoteEditor
         quote={quote}
         onChange={setQuote}
-        vat={{ available: companyHasVat, applicable: tva, onChange: setTva }}
+        readOnly={isAccepted}
+        vat={{ rates: vatRates, selected: selectedRate, onChange: setSelectedRate, locked: isSent }}
         summaryExtras={controls}
+        afterTitle={
+          isSent ? (
+            <div>
+              <button
+                onClick={() =>
+                  setIsAccepted((v) => {
+                    const next = !v;
+                    setAcceptedStamp(next ? (acceptedStamp ?? new Date().toISOString()) : null);
+                    posthog.capture("quote_status_changed", { quote_id: id, status: next ? "accepted" : "sent" });
+                    return next;
+                  })
+                }
+                className={`w-full inline-flex items-center justify-center gap-2 rounded-2xl py-3.5 text-[15px] font-[700] transition ${
+                  isAccepted
+                    ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-[0_8px_22px_rgba(5,150,105,.25)]"
+                    : "bg-white border-2 border-emerald-600 text-emerald-700 hover:bg-emerald-50"
+                }`}
+              >
+                <Check size={18} /> {isAccepted ? "Devis validé" : "Marquer comme validé"}
+              </button>
+              {isAccepted && acceptedStamp && (
+                <p className="mt-1.5 text-center text-[12px] text-zinc-500">
+                  Validé le {fmtDateTime(acceptedStamp)}
+                </p>
+              )}
+            </div>
+          ) : null
+        }
       />
 
-      <div className="mt-5">
-        <TranscriptPanel
-          transcript={transcript}
-          onChange={setTranscript}
-          onReprocess={reprocess}
-          reprocessing={reprocessing}
-        />
-      </div>
+      {!isAccepted && (
+        <div className="mt-5">
+          <TranscriptPanel
+            transcript={transcript}
+            onChange={setTranscript}
+            onReprocess={reprocess}
+            reprocessing={reprocessing}
+          />
+        </div>
+      )}
+
+      <ClientFormModal
+        open={creatingClient}
+        initialName={createName}
+        onClose={() => setCreatingClient(false)}
+        onCreated={onClientCreated}
+      />
     </>
   );
 }

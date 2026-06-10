@@ -31,7 +31,10 @@ const saved = await saveQuote(scope, {
   lines: quote.lines,
   review_notes: quote.review_notes,
   sent: false,
-  tva_applicable: true,
+  accepted: false,
+  sent_at: null,
+  accepted_at: null,
+  vat_rate: 8.1,
 });
 console.log("saved id:", saved.id);
 

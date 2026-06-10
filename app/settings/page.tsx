@@ -1,19 +1,22 @@
 import { requireOwnerForPage } from "../../src/db/auth";
 import { getCompany } from "../../src/db/company";
+import { getUser } from "../../src/db/users";
 import CompanyForm from "./CompanyForm";
+import UserForm from "./UserForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const scope = await requireOwnerForPage("/settings");
-  const company = await getCompany(scope);
+  const [user, company] = await Promise.all([getUser(scope), getCompany(scope)]);
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-7 lg:px-10 py-8 sm:py-12">
       <h1 className="font-display text-[38px] leading-tight tracking-tight">Réglages</h1>
       <p className="text-zinc-600 mt-1 text-[15px] mb-6">
-        Vos coordonnées d'entreprise et vos connexions.
+        Vos coordonnées et celles de votre entreprise.
       </p>
 
+      <UserForm initial={user} />
       <CompanyForm initial={company} />
 
       <section className="mt-5 rounded-[24px] bg-white shadow-soft border border-line p-5 sm:p-6">

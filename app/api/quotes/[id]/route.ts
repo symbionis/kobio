@@ -9,7 +9,8 @@ interface UpdateBody {
   quote: Quote;
   client_id?: string | null;
   sent?: boolean;
-  tva_applicable?: boolean;
+  accepted?: boolean;
+  vat_rate?: number | null;
   transcript?: string | null;
   trade?: string | null;
 }
@@ -37,11 +38,19 @@ export async function PUT(
     const existing = await getQuote(scope, id);
     if (!existing) return NextResponse.json({ error: "Devis introuvable." }, { status: 404 });
 
+    // Stamp the first time each status is set; clear when toggled back off.
+    const now = new Date().toISOString();
+    const sent = body.sent ?? false;
+    const accepted = body.accepted ?? false;
+
     const saved = await persistQuote(scope, body.quote, {
       id,
       client_id: body.client_id ?? null,
-      sent: body.sent ?? false,
-      tva_applicable: body.tva_applicable ?? true,
+      sent,
+      accepted,
+      sent_at: sent ? (existing.sent_at ?? now) : null,
+      accepted_at: accepted ? (existing.accepted_at ?? now) : null,
+      vat_rate: body.vat_rate ?? null,
       transcript: body.transcript ?? null,
       trade: body.trade ?? null,
     });

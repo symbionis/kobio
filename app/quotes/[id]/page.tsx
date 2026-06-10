@@ -29,8 +29,12 @@ export default async function SavedQuotePage({
         trade={row.trade ?? null}
         clientId={row.client_id}
         sent={row.sent}
-        tvaApplicable={row.tva_applicable}
-        companyHasVat={Boolean(company?.vat_number)}
+        accepted={row.accepted}
+        vatRate={row.vat_rate == null ? null : Number(row.vat_rate)}
+        vatRates={company?.vat_rates ?? []}
+        createdAt={row.created_at}
+        sentAt={row.sent_at}
+        acceptedAt={row.accepted_at}
         clients={clients.map((c) => ({ id: c.id, name: c.name }))}
       />
     </main>

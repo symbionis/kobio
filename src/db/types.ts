@@ -7,6 +7,23 @@
 
 import type { Contact, Line } from "../quote/types";
 
+/** One configurable VAT rate the builder can apply to a devis. The label is
+ *  free text (e.g. "Normal", "Réduit"); `rate` is the percentage (8.1 = 8.1%). */
+export interface VatRate {
+  label: string;
+  rate: number;
+}
+
+/** The person operating the account (1:1 with the auth user). Distinct from the
+ *  company — name, e-mail, and phone are person-level. */
+export interface UserRow {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
 export interface CompanyRow {
   id: string;
   owner_id: string;
@@ -18,6 +35,8 @@ export interface CompanyRow {
   email: string | null;
   phone: string | null;
   vat_number: string | null;
+  /** The builder's configurable VAT rates, offered as a choice on each devis. */
+  vat_rates: VatRate[];
   logo_ref: string | null;
   /** The builder's single trade (métier). Null until set in Réglages. */
   trade: string | null;
@@ -45,7 +64,15 @@ export interface QuoteRow {
   lines: Line[];
   review_notes: string[];
   sent: boolean;
+  /** Client validated/accepted the devis (the step after Envoyé). */
+  accepted: boolean;
+  /** When the devis was first marked Envoyé / Validé (null until then). */
+  sent_at: string | null;
+  accepted_at: string | null;
+  /** Legacy VAT-on flag; kept in sync with `vat_rate` (= vat_rate != null). */
   tva_applicable: boolean;
+  /** The single VAT rate chosen for this devis, or null for "Aucune". */
+  vat_rate: number | null;
   /** Source voice transcript. Null on rows created before migration 0006. */
   transcript: string | null;
   /** The trade (métier) active at dictation; scopes catalog candidates. */

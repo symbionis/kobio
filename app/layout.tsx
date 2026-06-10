@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Fragment_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import type { ReactNode } from "react";
 import { Toaster } from "sonner";
+import FeedbackWidget from "./components/FeedbackWidget";
 import TopNav from "./components/TopNav";
 import "./globals.css";
 
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <Toaster richColors position="top-center" />
         <TopNav />
         {children}
+        <FeedbackWidget />
       </body>
     </html>
   );

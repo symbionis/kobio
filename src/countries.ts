@@ -1,0 +1,36 @@
+/** Country names for address fields (French). EU member states plus
+ *  Switzerland and the United Kingdom. Suisse first (the common default),
+ *  the rest alphabetical. Lives in src/ so the deterministic contact core can
+ *  map a spoken country without reaching into the app layer; the app re-exports
+ *  it via app/lib/countries.ts. */
+export const COUNTRIES = [
+  "Suisse",
+  "Allemagne",
+  "Autriche",
+  "Belgique",
+  "Bulgarie",
+  "Chypre",
+  "Croatie",
+  "Danemark",
+  "Espagne",
+  "Estonie",
+  "Finlande",
+  "France",
+  "Grèce",
+  "Hongrie",
+  "Irlande",
+  "Italie",
+  "Lettonie",
+  "Lituanie",
+  "Luxembourg",
+  "Malte",
+  "Pays-Bas",
+  "Pologne",
+  "Portugal",
+  "Roumanie",
+  "Royaume-Uni",
+  "Slovaquie",
+  "Slovénie",
+  "Suède",
+  "Tchéquie",
+];

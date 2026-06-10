@@ -1,6 +1,7 @@
 "use client";
 
 import { Mail, RefreshCw } from "lucide-react";
+import posthog from "posthog-js";
 import { type FormEvent, useState } from "react";
 import { browserClient } from "../../src/db/supabase/browser";
 
@@ -55,9 +56,9 @@ export default function AuthOtp({ onAuthed, reason }: AuthOtpProps) {
     // A new email arrives via the "Confirm signup" template (type "signup");
     // a returning email via "Magic Link" (type "email"). Try sign-in first,
     // fall back to signup, so the same code input works for both.
-    let { error } = await supabase.auth.verifyOtp({ email: addr, token, type: "email" });
+    let { data, error } = await supabase.auth.verifyOtp({ email: addr, token, type: "email" });
     if (error) {
-      ({ error } = await supabase.auth.verifyOtp({ email: addr, token, type: "signup" }));
+      ({ data, error } = await supabase.auth.verifyOtp({ email: addr, token, type: "signup" }));
     }
     setBusy(false);
     if (error) {
@@ -67,6 +68,11 @@ export default function AuthOtp({ onAuthed, reason }: AuthOtpProps) {
           : "Code incorrect. Vérifiez les 6 chiffres reçus par e-mail.",
       );
       return;
+    }
+    // Tie this browser's events to the signed-in user.
+    if (data.user) {
+      posthog.identify(data.user.id, { email: addr });
+      posthog.capture("user_signed_in");
     }
     onAuthed?.();
   }
