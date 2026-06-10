@@ -161,6 +161,9 @@ export default function UserForm({ initial }: { initial: UserRow | null }) {
           </div>
         ) : emailStep === "new" ? (
           <form onSubmit={sendEmailCode} className="flex flex-col gap-2 mt-1">
+            <p className="text-[12.5px] text-zinc-500">
+              C'est aussi votre adresse de connexion — vous l'utiliserez pour vous connecter.
+            </p>
             <input
               className={input}
               type="email"
