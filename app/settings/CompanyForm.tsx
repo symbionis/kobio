@@ -18,6 +18,8 @@ interface RateRow {
 export default function CompanyForm({ initial }: { initial: CompanyRow | null }) {
   const router = useRouter();
   const [name, setName] = useState(initial?.name ?? "");
+  const [firstName, setFirstName] = useState(initial?.first_name ?? "");
+  const [lastName, setLastName] = useState(initial?.last_name ?? "");
   const [trade, setTrade] = useState(initial?.trade ?? "");
   const [address, setAddress] = useState(initial?.address ?? "");
   const [postcode, setPostcode] = useState(initial?.postcode ?? "");
@@ -71,6 +73,8 @@ export default function CompanyForm({ initial }: { initial: CompanyRow | null })
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
+          first_name: firstName || null,
+          last_name: lastName || null,
           address: address || null,
           postcode: postcode || null,
           city: city || null,
@@ -99,9 +103,24 @@ export default function CompanyForm({ initial }: { initial: CompanyRow | null })
     "rounded-xl border border-zinc-300 px-3 py-2.5 text-[14.5px] bg-white text-ink outline-none focus:ring-2 focus:ring-[#ffbb94]";
 
   return (
-    <section className="rounded-[24px] bg-white shadow-soft border border-line p-5 sm:p-6">
-      <h2 className="font-[730] text-[17px] mb-4">Profil de l'entreprise</h2>
-      <form className="flex flex-col gap-4" onSubmit={submit}>
+    <form className="flex flex-col gap-4" onSubmit={submit}>
+      <section className="rounded-[24px] bg-white shadow-soft border border-line p-5 sm:p-6">
+        <h2 className="font-[730] text-[17px] mb-4">Vous</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <label className={field}>
+            Prénom
+            <input className={input} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+          </label>
+          <label className={field}>
+            Nom
+            <input className={input} value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          </label>
+        </div>
+      </section>
+
+      <section className="rounded-[24px] bg-white shadow-soft border border-line p-5 sm:p-6">
+        <h2 className="font-[730] text-[17px] mb-4">Profil de l'entreprise</h2>
+        <div className="flex flex-col gap-4">
         <label className={field}>
           Nom de l'entreprise
           <input className={input} value={name} onChange={(e) => setName(e.target.value)} required />
@@ -226,8 +245,9 @@ export default function CompanyForm({ initial }: { initial: CompanyRow | null })
           </button>
           {saved && <span className="text-[13.5px] text-emerald-700">Enregistré</span>}
         </div>
-      </form>
-      {error && <p className="mt-3 text-[13.5px] text-[#b91c1c]">{error}</p>}
-    </section>
+        {error && <p className="mt-3 text-[13.5px] text-[#b91c1c]">{error}</p>}
+        </div>
+      </section>
+    </form>
   );
 }

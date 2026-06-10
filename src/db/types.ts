@@ -18,6 +18,9 @@ export interface CompanyRow {
   id: string;
   owner_id: string;
   name: string;
+  /** The person operating the account (distinct from the company name). */
+  first_name: string | null;
+  last_name: string | null;
   address: string | null;
   postcode: string | null;
   city: string | null;

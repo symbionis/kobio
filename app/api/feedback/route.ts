@@ -43,24 +43,27 @@ export async function POST(request: Request): Promise<Response> {
     const transcript = await audioToTranscript(audio);
 
     // Resolve the sender best-effort — feedback still posts when signed out.
-    let name: string | null = null;
+    let greetName: string | null = null; // first name, for the "Merci X" confirmation
+    let slackName: string | null = null; // full name (or company), for Slack attribution
     let email: string | null = null;
     const scope = await getOptionalOwner();
     if (scope) {
       const { data } = await scope.supabase.auth.getUser();
       email = data.user?.email ?? null;
       const company = await getCompany(scope);
-      name = company?.name ?? null;
+      greetName = company?.first_name ?? company?.name ?? null;
+      const person = [company?.first_name, company?.last_name].filter(Boolean).join(" ").trim();
+      slackName = person || company?.name || null;
     }
 
     const res = await fetch(webhook, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(buildSlackMessage(transcript, { name, email, page })),
+      body: JSON.stringify(buildSlackMessage(transcript, { name: slackName, email, page })),
     });
     if (!res.ok) throw new Error(`Slack a refusé l'envoi (${res.status}).`);
 
-    return NextResponse.json({ ok: true, name });
+    return NextResponse.json({ ok: true, name: greetName });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erreur inconnue.";
     return NextResponse.json({ error: message }, { status: 502 });

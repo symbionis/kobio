@@ -35,6 +35,8 @@ export async function GET(): Promise<Response> {
 
 interface CompanyBody {
   name: string;
+  first_name?: string | null;
+  last_name?: string | null;
   address?: string | null;
   postcode?: string | null;
   city?: string | null;
@@ -54,6 +56,8 @@ export async function POST(request: Request): Promise<Response> {
     const b = (await request.json()) as CompanyBody;
     const saved = await saveCompany(scope, {
       name: b.name,
+      first_name: b.first_name?.trim() || null,
+      last_name: b.last_name?.trim() || null,
       address: b.address ?? null,
       postcode: b.postcode ?? null,
       city: b.city ?? null,
