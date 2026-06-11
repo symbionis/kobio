@@ -12,10 +12,9 @@ type Status = "idle" | "recording" | "loading" | "thanks" | "error";
  * + posts to Slack, then thanks the user by name. No transcript shown, no edit.
  *
  * Navy (not brand orange) so it reads as a distinct utility, not a second copy
- * of the primary Dicter action. Icon-only for signed-out visitors (keeps the
- * marketing pages clean); expands to a labelled pill once signed in, where
- * builders are the ones with feedback to give. Bounces occasionally to stay
- * noticed.
+ * of the primary Dicter action. Only shown to signed-in users — the builders
+ * actually using the app are the ones with feedback to give; anonymous visitors
+ * on the marketing pages don't see it. Bounces occasionally to stay noticed.
  */
 export default function FeedbackWidget() {
   const [open, setOpen] = useState(false);
@@ -89,7 +88,8 @@ export default function FeedbackWidget() {
   }
 
   const recording = status === "recording";
-  const expanded = authed && !open; // labelled pill only when signed in and closed
+  if (!authed) return null; // feedback is for signed-in users only
+  const expanded = !open; // labelled pill when closed, X when open
 
   return (
     <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center">
