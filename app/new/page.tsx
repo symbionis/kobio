@@ -7,7 +7,7 @@ import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { VatRate } from "../../src/db/types";
 import type { Quote } from "../../src/quote/types";
-import { TRADES } from "../../src/quote/trades";
+import { TRADES, asTrade } from "../../src/quote/trades";
 import AuthOtp from "../components/AuthOtp";
 import QuoteEditor from "../components/QuoteEditor";
 import TranscriptPanel from "../components/TranscriptPanel";
@@ -54,8 +54,33 @@ export default function NewQuotePage() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Pre-select the trade from the URL (?trade= on the home "Métiers" links) or
+  // the last choice persisted in localStorage. Runs first; the profile default
+  // below only fills in when neither is present.
+  useEffect(() => {
+    try {
+      const fromUrl = asTrade(new URLSearchParams(window.location.search).get("trade"));
+      const fromStore = asTrade(localStorage.getItem("kobio_trade"));
+      const initial = fromUrl ?? fromStore;
+      if (initial) setTrade(initial);
+    } catch {
+      /* no window/localStorage (SSR, private mode) — fall through to profile */
+    }
+  }, []);
+
+  // Persist the selected trade so it carries across visits.
+  useEffect(() => {
+    if (!trade) return;
+    try {
+      localStorage.setItem("kobio_trade", trade);
+    } catch {
+      /* private mode — non-fatal */
+    }
+  }, [trade]);
+
   // Load the builder's configured VAT rates; default the devis to the first one
-  // (typically the standard rate). Also default the trade from the profile.
+  // (typically the standard rate). Trade falls back to the profile only when not
+  // already set from the URL/localStorage above.
   useEffect(() => {
     fetch("/api/company")
       .then((res) => (res.ok ? res.json() : null))
@@ -63,7 +88,8 @@ export default function NewQuotePage() {
         const rates = (data?.company?.vat_rates ?? []) as VatRate[];
         setVatRates(rates);
         setVatRate(rates.length > 0 ? rates[0].rate : null);
-        if (data?.company?.trade) setTrade(data.company.trade as string);
+        const profileTrade = asTrade(data?.company?.trade);
+        if (profileTrade) setTrade((prev) => prev || profileTrade);
       })
       .catch(() => setVatRates([]));
   }, []);

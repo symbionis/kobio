@@ -10,8 +10,12 @@ import {
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
+import { TRADES } from "../src/quote/trades";
 
-const METIERS = ["Plomberie", "Électricité", "Peinture", "Maçonnerie", "Menuiserie", "Carrelage"];
+// The supported métiers, in display order — derived from the canonical TRADES so
+// each pill carries its trade value and can deep-link into /new pre-selected.
+const METIER_ORDER = ["plomberie", "electricite", "peinture", "maconnerie", "menuiserie", "carrelage"];
+const METIERS = METIER_ORDER.flatMap((v) => TRADES.filter((t) => t.value === v));
 
 const EXAMPLE_LINES = [
   { label: "Dépose et pose lavabo complet", price: "CHF 420" },
@@ -119,9 +123,13 @@ export default function HomePage() {
             <div className="flex flex-wrap items-center gap-3 mt-9 text-[12.5px] text-zinc-500">
               <span className="font-[650] text-zinc-600">Métiers pris en charge :</span>
               {METIERS.map((m) => (
-                <span key={m} className="px-2.5 py-1 rounded-full bg-white border border-zinc-200">
-                  {m}
-                </span>
+                <Link
+                  key={m.value}
+                  href={`/new?trade=${m.value}`}
+                  className="px-2.5 py-1 rounded-full bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 transition"
+                >
+                  {m.label}
+                </Link>
               ))}
             </div>
           </div>
