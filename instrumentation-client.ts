@@ -23,7 +23,12 @@ function dropOpaqueScriptErrors(event: CaptureResult | null): CaptureResult | nu
 // Ingestion is reverse-proxied through /ingest (see next.config.mjs) so it
 // isn't blocked by ad/tracker blockers. EU cloud.
 const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
-if (key) {
+// Only send analytics from real production traffic. Local dev (npm run dev) and
+// local production builds would otherwise land anonymously in the prod project
+// and pollute acquisition funnels — they can't be email-filtered out.
+const host = typeof window !== "undefined" ? window.location.hostname : "";
+const isLocal = host === "localhost" || host === "127.0.0.1" || host.endsWith(".local");
+if (key && process.env.NODE_ENV === "production" && !isLocal) {
   posthog.init(key, {
     api_host: "/ingest",
     ui_host: "https://eu.posthog.com",
