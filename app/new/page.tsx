@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import posthog from "posthog-js";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { browserClient, hasBrowserAuthConfig } from "../../src/db/supabase/browser";
 import type { VatRate } from "../../src/db/types";
 import type { Quote } from "../../src/quote/types";
 import { TRADES, asTrade } from "../../src/quote/trades";
@@ -46,8 +47,10 @@ export default function NewQuotePage() {
   const [vatRate, setVatRate] = useState<number | null>(null);
   const [trade, setTrade] = useState<string>("");
   const [seconds, setSeconds] = useState(0);
+  const [authed, setAuthed] = useState(false);
 
   const router = useRouter();
+  const editedRef = useRef(false); // fire quote_edited only once per quote
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -77,6 +80,16 @@ export default function NewQuotePage() {
       /* private mode — non-fatal */
     }
   }, [trade]);
+
+  // Know whether the visitor is signed in — gates the VAT "Configurer" link so
+  // it doesn't dead-end anonymous testers at the login page.
+  useEffect(() => {
+    if (!hasBrowserAuthConfig()) return;
+    const supabase = browserClient();
+    supabase.auth.getUser().then(({ data }) => setAuthed(!!data.user));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setAuthed(!!s?.user));
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   // Load the builder's configured VAT rates; default the devis to the first one
   // (typically the standard rate). Trade falls back to the profile only when not
@@ -223,6 +236,7 @@ export default function NewQuotePage() {
       if (!res.ok) throw new Error(data.error ?? `Erreur ${res.status}`);
       setTranscript(data.transcript);
       setQuote(data.quote);
+      editedRef.current = false; // fresh quote — re-arm the quote_edited capture
       setStatus("done");
       posthog.capture("quote_parsed", {
         trade: trade || null,
@@ -231,6 +245,12 @@ export default function NewQuotePage() {
       });
     } catch (err) {
       posthog.captureException(err, { context: "quote_parse" });
+      // Named funnel event (the exception goes to Error Tracking, not the funnel)
+      // so a recording→result drop-off is explainable.
+      posthog.capture("quote_parse_failed", {
+        trade: trade || null,
+        message: err instanceof Error ? err.message : "unknown",
+      });
       setError(err instanceof Error ? err.message : "Échec du traitement de la note.");
       setStatus("error");
     }
@@ -271,6 +291,17 @@ export default function NewQuotePage() {
     setTranscript("");
     setError(null);
     setStatus("idle");
+    editedRef.current = false;
+  }
+
+  // Editing the quote (line/title/forfait/review) updates state and records
+  // engagement once per quote — the "did they actually edit?" funnel step.
+  function handleQuoteChange(next: Quote) {
+    setQuote(next);
+    if (!editedRef.current) {
+      editedRef.current = true;
+      posthog.capture("quote_edited", { trade: trade || null });
+    }
   }
 
   // Save the draft to the library, then open its saved page (U4 → U6).
@@ -278,6 +309,12 @@ export default function NewQuotePage() {
     if (!quote) return;
     setSaving(true);
     setError(null);
+    // Intent to keep the draft — the step right before the account wall.
+    posthog.capture("quote_save_clicked", {
+      trade: trade || null,
+      line_count: quote.lines.length,
+      review_notes: quote.review_notes?.length ?? 0,
+    });
     try {
       const res = await fetch("/api/quotes", {
         method: "POST",
@@ -292,6 +329,8 @@ export default function NewQuotePage() {
       // Anonymous capture: a save with no session asks for an email code, then
       // resumes (the quote is still in memory). Not an error.
       if (res.status === 401) {
+        // The account wall — the key drop-off point for anonymous testers.
+        posthog.capture("quote_auth_required", { trade: trade || null });
         setNeedAuth(true);
         return;
       }
@@ -333,10 +372,10 @@ export default function NewQuotePage() {
 
         <QuoteEditor
           quote={quote}
-          onChange={setQuote}
+          onChange={handleQuoteChange}
           onSave={saveToLibrary}
           saving={saving}
-          vat={{ rates: vatRates, selected: vatRate, onChange: setVatRate }}
+          vat={{ rates: vatRates, selected: vatRate, onChange: setVatRate, configurable: authed }}
         />
 
         {/* Editable transcript — fix what was heard, then recalculate. */}
@@ -395,7 +434,10 @@ export default function NewQuotePage() {
               {TRADES.map((t) => (
                 <button
                   key={t.value}
-                  onClick={() => setTrade(t.value)}
+                  onClick={() => {
+                    setTrade(t.value);
+                    posthog.capture("trade_selected", { trade: t.value });
+                  }}
                   className={`px-3 py-1.5 rounded-full border text-[13.5px] transition ${
                     trade === t.value
                       ? "bg-dark text-white border-dark"

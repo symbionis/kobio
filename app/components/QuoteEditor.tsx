@@ -28,6 +28,10 @@ interface QuoteEditorProps {
     selected: number | null;
     onChange: (rate: number | null) => void;
     locked?: boolean;
+    /** Whether the viewer can reach Réglages to configure rates. Defaults true;
+     *  pass false for anonymous testers so the "Configurer" link (which would
+     *  bounce them to /login) is replaced by a plain "Aucune". */
+    configurable?: boolean;
   };
   /** Extra controls rendered in the sticky right rail, below the totals
    *  (e.g. client picker, status, PDF on the saved-quote screen). */
@@ -326,6 +330,8 @@ export default function QuoteEditor({
                     <div className="w-[150px]">
                       <RateSelect rates={vat.rates} value={vat.selected} onChange={vat.onChange} />
                     </div>
+                  ) : vat.configurable === false ? (
+                    <span className="text-zinc-700">TVA Aucune</span>
                   ) : (
                     <span>
                       TVA{" "}
