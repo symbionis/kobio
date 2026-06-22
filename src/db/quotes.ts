@@ -1,4 +1,5 @@
 import { asTrade } from "../quote/trades";
+import type { Discount } from "../quote/totals";
 import type { Contact, Line, Quote } from "../quote/types";
 import type { OwnerScope } from "./auth";
 import { logOverrides } from "./overrides";
@@ -23,6 +24,9 @@ export interface SaveQuoteInput {
   accepted_at: string | null;
   /** Chosen VAT rate for this devis, or null for "Aucune". */
   vat_rate: number | null;
+  /** Optional quote-level discount (remise); persisted when migration 0017 has
+   *  been applied. */
+  discount?: Discount | null;
   /** Source voice transcript; persisted when migration 0006 has been applied. */
   transcript?: string | null;
   /** The trade (métier) active at dictation. */
@@ -57,12 +61,19 @@ export async function saveQuote(scope: OwnerScope, input: SaveQuoteInput): Promi
     trade: asTrade(input.trade),
     updated_at: new Date().toISOString(),
   };
-  const row = { ...base, transcript: input.transcript ?? null };
+  // transcript (migration 0006) and discount (0017) layer on top of base.
+  const row = { ...base, discount: input.discount ?? null, transcript: input.transcript ?? null };
 
   let { data, error } = await scope.supabase.from("quotes").upsert(row).select().single();
-  // Self-healing: before migration 0006 the transcript column doesn't exist and
-  // PostgREST rejects the unknown key — retry without it so saves never break.
-  if (error && /transcript/i.test(error.message)) {
+  // Self-healing for pre-migration DBs: when the transcript (0006) or discount
+  // (0017) column doesn't exist yet, PostgREST rejects the unknown key with a
+  // schema-cache miss (PGRST204) / undefined_column (42703). Detect that by CODE,
+  // not by matching the column name in the message — `discount` is user data and
+  // a value-level error mentioning it must NOT trip the retry (that would
+  // silently re-save without the remise). The retry drops both optional columns
+  // together; a genuine other failure still throws loudly below.
+  if (error && (error.code === "PGRST204" || error.code === "42703")) {
+    console.warn(`saveQuote: optional column missing, retrying without transcript/discount — ${error.message}`);
     ({ data, error } = await scope.supabase.from("quotes").upsert(base).select().single());
   }
   if (error) throw new Error(`saveQuote failed: ${error.message}`);
@@ -100,6 +111,7 @@ export async function persistQuote(
     sent_at: string | null;
     accepted_at: string | null;
     vat_rate: number | null;
+    discount?: Discount | null;
     transcript?: string | null;
     trade?: string | null;
   },
@@ -117,6 +129,7 @@ export async function persistQuote(
     sent_at: opts.sent_at,
     accepted_at: opts.accepted_at,
     vat_rate: opts.vat_rate,
+    discount: opts.discount,
     transcript: opts.transcript,
     trade: opts.trade,
   });

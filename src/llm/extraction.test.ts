@@ -64,7 +64,13 @@ describe("rawToExtracted → finishQuote", () => {
     expect(quote.lines[1].quantity.value).toBe(56.11);
     expect(quote.lines[1].amount).toBe(3647.15);
     expect(quote.lines[2].amount).toBe(150);
-    expect(totals(quote)).toEqual({ ht: 4362.26, tva: 353.34, ttc: 4715.6 });
+    expect(totals(quote)).toEqual({
+      ht: 4362.26,
+      discount_amount: 0,
+      net: 4362.26,
+      tva: 353.34,
+      ttc: 4715.6,
+    });
   });
 
   it("derives price_override in code from the model's candidates + rate", () => {

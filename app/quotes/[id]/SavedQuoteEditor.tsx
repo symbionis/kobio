@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import posthog from "posthog-js";
 import { useEffect, useRef, useState } from "react";
 import type { VatRate } from "../../../src/db/types";
+import type { Discount } from "../../../src/quote/totals";
 import type { Quote } from "../../../src/quote/types";
 import ClientFormModal from "../../components/ClientFormModal";
 import ClientSelect from "../../components/ClientSelect";
@@ -31,6 +32,8 @@ interface Props {
   vatRate: number | null;
   /** The builder's configured VAT rates, offered as a choice. */
   vatRates: VatRate[];
+  /** Stored quote-level discount (remise), or null for none. */
+  discount: Discount | null;
   /** When the devis was created (ISO) — shown in the header and on the PDF. */
   createdAt: string;
   /** Stored Envoyé / Validé timestamps (ISO), or null. */
@@ -55,6 +58,7 @@ export default function SavedQuoteEditor({
   accepted,
   vatRate,
   vatRates,
+  discount: initialDiscount,
   createdAt,
   sentAt,
   acceptedAt,
@@ -72,6 +76,7 @@ export default function SavedQuoteEditor({
   const [sentStamp, setSentStamp] = useState<string | null>(sentAt);
   const [acceptedStamp, setAcceptedStamp] = useState<string | null>(acceptedAt);
   const [selectedRate, setSelectedRate] = useState<number | null>(vatRate);
+  const [discount, setDiscount] = useState<Discount | null>(initialDiscount);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +100,7 @@ export default function SavedQuoteEditor({
           sent: isSent,
           accepted: isAccepted,
           vat_rate: selectedRate,
+          discount,
           transcript,
           trade,
         }),
@@ -130,7 +136,7 @@ export default function SavedQuoteEditor({
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quote, transcript, client, isSent, isAccepted, selectedRate]);
+  }, [quote, transcript, client, isSent, isAccepted, selectedRate, discount]);
 
   // Re-run extraction on the edited transcript, then let autosave persist it.
   async function reprocess() {
@@ -346,6 +352,8 @@ export default function SavedQuoteEditor({
         onChange={setQuote}
         readOnly={isAccepted}
         vat={{ rates: vatRates, selected: selectedRate, onChange: setSelectedRate, locked: isSent }}
+        discount={discount}
+        onDiscount={setDiscount}
         summaryExtras={controls}
         afterTitle={
           isSent ? (

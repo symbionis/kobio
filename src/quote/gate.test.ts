@@ -62,7 +62,13 @@ describe("deterministic gate: Amina worked example", () => {
     expect(quote.lines[2].price_override).toBe("n/a");
   });
 
-  it("totals to TTC 4715.60", () => {
-    expect(totals(quote)).toEqual({ ht: 4362.26, tva: 353.34, ttc: 4715.6 });
+  it("totals to TTC 4715.60 (no discount path unchanged)", () => {
+    expect(totals(quote)).toEqual({
+      ht: 4362.26,
+      discount_amount: 0,
+      net: 4362.26,
+      tva: 353.34,
+      ttc: 4715.6,
+    });
   });
 });

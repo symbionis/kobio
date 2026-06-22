@@ -51,7 +51,15 @@ export async function GET(
 
   try {
     const vatRate = row.vat_rate == null ? null : Number(row.vat_rate);
-    const pdf = await renderQuotePdf(company, client, rowToQuote(row), vatRate, row.created_at, user);
+    const pdf = await renderQuotePdf(
+      company,
+      client,
+      rowToQuote(row),
+      vatRate,
+      row.discount ?? null,
+      row.created_at,
+      user,
+    );
     const safeId = id.replace(/[^a-zA-Z0-9-]/g, "");
     await captureServer(scope.ownerId, "quote_pdf_generated", { quote_id: id });
     return new Response(new Uint8Array(pdf), {

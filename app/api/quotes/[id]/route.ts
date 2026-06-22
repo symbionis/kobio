@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { UnauthorizedError, requireOwner } from "../../../../src/db/auth";
 import { getQuote, persistQuote } from "../../../../src/db/quotes";
+import { normalizeDiscount, type Discount } from "../../../../src/quote/totals";
 import type { Quote } from "../../../../src/quote/types";
 
 export const runtime = "nodejs";
@@ -11,6 +12,7 @@ interface UpdateBody {
   sent?: boolean;
   accepted?: boolean;
   vat_rate?: number | null;
+  discount?: Discount | null;
   transcript?: string | null;
   trade?: string | null;
 }
@@ -51,6 +53,9 @@ export async function PUT(
       sent_at: sent ? (existing.sent_at ?? now) : null,
       accepted_at: accepted ? (existing.accepted_at ?? now) : null,
       vat_rate: body.vat_rate ?? null,
+      // Never trust a client-sent discount into the money math / jsonb: validate
+      // kind, coerce + finite-check the value, clamp percent to 0..100.
+      discount: normalizeDiscount(body.discount),
       transcript: body.transcript ?? null,
       trade: body.trade ?? null,
     });

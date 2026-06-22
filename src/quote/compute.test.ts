@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { computeLine, derivePriceOverride, round2 } from "./compute";
-import type { CatalogMatch, ExtractedLine } from "./types";
+import {
+  applyExpression,
+  computeLine,
+  derivePriceOverride,
+  expressionIsBroken,
+  round2,
+} from "./compute";
+import type { CatalogMatch, ExtractedLine, Line } from "./types";
 
 function areaLine(
   expression: string,
@@ -98,6 +104,118 @@ describe("computeLine arithmetic", () => {
     const before = JSON.stringify(input);
     computeLine(input);
     expect(JSON.stringify(input)).toBe(before);
+  });
+});
+
+function computedLine(overrides: Partial<Line> = {}): Line {
+  return {
+    raw_text: "",
+    description: "test",
+    quantity: { kind: "area", expression: "(1 + 1) * 2", value: 4, unit: "m2" },
+    rate: 10,
+    rate_source: "spoken",
+    amount: 40,
+    catalog_match: { candidates: [], confidence: "none" },
+    price_override: "n/a",
+    tax_rate: 8.1,
+    needs_review: false,
+    ...overrides,
+  };
+}
+
+describe("applyExpression (inline formula edit)", () => {
+  it("recomputes value and amount with the round-then-multiply rule", () => {
+    const line = applyExpression(
+      computedLine({ rate: 65 }),
+      "(5.25 + 2.90 + 2.16 + 2.42 + 7.60) * 2.76",
+    );
+    expect(line.quantity.value).toBe(56.11);
+    expect(line.amount).toBe(3647.15);
+    expect(line.quantity.expression).toBe("(5.25 + 2.90 + 2.16 + 2.42 + 7.60) * 2.76");
+  });
+
+  it("normalises fr-CH commas to dots before evaluating", () => {
+    const line = applyExpression(computedLine({ rate: 13 }), "(5,25 + 2,90 + 7,60) * 2,76");
+    expect(line.quantity.value).toBe(43.47);
+    expect(line.amount).toBe(565.11);
+  });
+
+  it("leaves the rate untouched — only value/amount move", () => {
+    const line = applyExpression(computedLine({ rate: 13 }), "(2 + 2) * 2");
+    expect(line.rate).toBe(13);
+    expect(line.amount).toBe(round2(8 * 13));
+  });
+
+  it("flags needs_review and keeps the prior amount on a malformed expression", () => {
+    const line = applyExpression(computedLine({ amount: 40, rate: 10 }), "5 + ");
+    expect(line.needs_review).toBe(true);
+    expect(line.amount).toBe(40);
+    expect(line.quantity.value).toBe(4);
+  });
+
+  it("flags needs_review on a malformed number (no throw)", () => {
+    expect(() => applyExpression(computedLine(), "1.2.3")).not.toThrow();
+    expect(applyExpression(computedLine(), "1.2.3").needs_review).toBe(true);
+  });
+
+  it("flags needs_review on division by zero (no throw)", () => {
+    expect(applyExpression(computedLine(), "4 / 0").needs_review).toBe(true);
+  });
+
+  it("clears the expression and flags when the formula is emptied, keeping prior amount", () => {
+    const line = applyExpression(computedLine({ amount: 40 }), "   ");
+    expect(line.quantity.expression).toBeNull();
+    expect(line.needs_review).toBe(true);
+    expect(line.amount).toBe(40);
+  });
+
+  it("clears a stale formula-error flag on a successful edit", () => {
+    const line = applyExpression(computedLine({ needs_review: true }), "(3 + 3) * 2");
+    expect(line.quantity.value).toBe(12);
+    expect(line.needs_review).toBe(false);
+  });
+
+  it("preserves an unrelated low-confidence flag on a successful edit", () => {
+    const line = applyExpression(
+      computedLine({
+        needs_review: true,
+        price_override: true,
+        catalog_match: {
+          candidates: [{ article_id: 1, name: "a", catalog_price: 15 }],
+          confidence: "low",
+        },
+      }),
+      "(2 + 2) * 2",
+    );
+    expect(line.needs_review).toBe(true);
+  });
+
+  it("never mutates the input line", () => {
+    const input = computedLine();
+    const before = JSON.stringify(input);
+    applyExpression(input, "(9 + 1) * 3");
+    expect(JSON.stringify(input)).toBe(before);
+  });
+});
+
+describe("expressionIsBroken", () => {
+  it("is false for a valid formula", () => {
+    expect(expressionIsBroken(computedLine({ quantity: { kind: "area", expression: "(2 + 2) * 3", value: 12, unit: "m2" } }))).toBe(false);
+  });
+
+  it("is false for a fr-CH comma formula that evaluates", () => {
+    expect(expressionIsBroken(computedLine({ quantity: { kind: "area", expression: "5,25 * 2", value: 10.5, unit: "m2" } }))).toBe(false);
+  });
+
+  it("is true for a malformed formula still on display", () => {
+    expect(expressionIsBroken(applyExpression(computedLine(), "5 + "))).toBe(true);
+    expect(expressionIsBroken(applyExpression(computedLine(), "1.2.3"))).toBe(true);
+    expect(expressionIsBroken(applyExpression(computedLine(), "4 / 0"))).toBe(true);
+  });
+
+  it("is false when there is no expression (forfait, bare count, or emptied formula)", () => {
+    expect(expressionIsBroken(computedLine({ quantity: { kind: "forfait", expression: null, value: null, unit: null } }))).toBe(false);
+    expect(expressionIsBroken(applyExpression(computedLine(), "   "))).toBe(false);
   });
 });
 

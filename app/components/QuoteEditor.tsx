@@ -1,12 +1,12 @@
 "use client";
 
 import { AlertTriangle, Check, Plus, Save, Trash2 } from "lucide-react";
-import type { ReactNode } from "react";
-import { round2 } from "../../src/quote/compute";
+import { useState, type ReactNode } from "react";
+import { applyExpression, expressionIsBroken, round2 } from "../../src/quote/compute";
 import { parseNum } from "../../src/quote/input";
 import { deriveStatus } from "../../src/quote/status";
 import type { VatRate } from "../../src/db/types";
-import { formatCHF, totalsFromLines } from "../../src/quote/totals";
+import { discountLabel, formatCHF, totalsFromLines, type Discount } from "../../src/quote/totals";
 import type { Line, Quote } from "../../src/quote/types";
 import { cn } from "../lib/cn";
 import RateSelect from "./RateSelect";
@@ -33,6 +33,11 @@ interface QuoteEditorProps {
      *  bounce them to /login) is replaced by a plain "Aucune". */
     configurable?: boolean;
   };
+  /** Optional quote-level discount (remise), applied to HT before TVA. When
+   *  `onDiscount` is provided an editable remise control renders in the totals;
+   *  pass neither to hide the discount entirely. */
+  discount?: Discount | null;
+  onDiscount?: (discount: Discount | null) => void;
   /** Extra controls rendered in the sticky right rail, below the totals
    *  (e.g. client picker, status, PDF on the saved-quote screen). */
   summaryExtras?: ReactNode;
@@ -60,10 +65,27 @@ export default function QuoteEditor({
   saving,
   saveLabel,
   vat,
+  discount,
+  onDiscount,
   summaryExtras,
   afterTitle,
   readOnly = false,
 }: QuoteEditorProps) {
+  // The remise unit (% / CHF). Tracks the active discount's kind; defaults to
+  // percent so the toggle works before any amount is entered.
+  const [discountUnit, setDiscountUnit] = useState<"percent" | "fixed">(discount?.kind ?? "percent");
+  const activeUnit = discount?.kind ?? discountUnit;
+
+  function emitDiscount(unit: "percent" | "fixed", raw: string) {
+    const value = parseNum(raw);
+    onDiscount?.(value > 0 ? { kind: unit, value } : null);
+  }
+
+  function changeUnit(unit: "percent" | "fixed") {
+    setDiscountUnit(unit);
+    if (discount) onDiscount?.({ kind: unit, value: discount.value });
+  }
+
   function patchLine(index: number, next: Line) {
     onChange({ ...quote, lines: quote.lines.map((l, i) => (i === index ? next : l)) });
   }
@@ -81,6 +103,14 @@ export default function QuoteEditor({
     const rate = parseNum(raw);
     const value = line.quantity.value;
     patchLine(i, { ...line, rate, amount: value === null ? round2(rate) : round2(value * rate) });
+  }
+
+  // Edit a line's calculation formula in place. Code owns the maths: the new
+  // expression is re-evaluated by the same deterministic core, a bad formula
+  // flags the line for review rather than producing a wrong number. No
+  // transcript round-trip — see applyExpression.
+  function onExpression(i: number, line: Line, raw: string) {
+    patchLine(i, applyExpression(line, raw));
   }
 
   // Append a blank forfait line — a manual flat-rate entry (free-text label,
@@ -107,13 +137,17 @@ export default function QuoteEditor({
   }
 
   // Clearing a line's review flag is how a Draft becomes Ready (status re-derives).
+  // Refuse it while the displayed formula doesn't evaluate: the amount is stale
+  // from before the bad edit, so verifying would ship a formula/total mismatch.
   function resolveLine(i: number, line: Line) {
+    if (expressionIsBroken(line)) return;
     patchLine(i, { ...line, needs_review: false });
   }
 
   const vatRate = vat ? vat.selected : null;
   const vatLocked = readOnly || Boolean(vat?.locked);
-  const totals = totalsFromLines(quote.lines, vatRate);
+  const totals = totalsFromLines(quote.lines, vatRate, discount ?? null);
+  const showDiscountRow = (onDiscount && !readOnly) || totals.discount_amount > 0;
   const status = deriveStatus(quote.lines, false);
   const isDraft = status === "Draft";
 
@@ -194,6 +228,7 @@ export default function QuoteEditor({
           <div className="space-y-3">
             {quote.lines.map((line, i) => {
               const isForfait = line.quantity.kind === "forfait";
+              const broken = expressionIsBroken(line);
               return (
                 <div
                   key={i}
@@ -204,25 +239,32 @@ export default function QuoteEditor({
                       : "border-zinc-200 bg-white",
                   )}
                 >
-                  {isForfait && !readOnly && (
+                  {!readOnly && (
                     <button
                       onClick={() => removeLine(i)}
                       title="Supprimer la ligne"
-                      className="absolute top-2.5 right-2.5 text-zinc-400 hover:text-red-600 transition"
+                      className="absolute top-2.5 right-2.5 z-10 text-zinc-400 hover:text-red-600 transition"
                     >
                       <Trash2 size={16} />
                     </button>
                   )}
 
                   {line.needs_review && (
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-[600] text-[#92400e] bg-amber-100 rounded-md px-2 py-0.5">
-                        <AlertTriangle size={12} /> À vérifier
+                    <div className="flex items-center justify-between mb-2 pr-7">
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 text-[11px] font-[600] rounded-md px-2 py-0.5",
+                          broken ? "text-[#b91c1c] bg-red-100" : "text-[#92400e] bg-amber-100",
+                        )}
+                      >
+                        <AlertTriangle size={12} /> {broken ? "Formule invalide" : "À vérifier"}
                       </span>
                       {!readOnly && (
                         <button
                           onClick={() => resolveLine(i, line)}
-                          className="inline-flex items-center gap-1 text-[12px] font-[600] text-[#92400e] border border-[#e7c890] bg-white rounded-md px-2.5 py-1 hover:bg-amber-50 transition"
+                          disabled={broken}
+                          title={broken ? "Corrigez la formule pour pouvoir vérifier" : undefined}
+                          className="inline-flex items-center gap-1 text-[12px] font-[600] text-[#92400e] border border-[#e7c890] bg-white rounded-md px-2.5 py-1 hover:bg-amber-50 transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
                         >
                           <Check size={13} /> marquer vérifié
                         </button>
@@ -245,19 +287,34 @@ export default function QuoteEditor({
                     onChange={(e) => onDescription(i, line, e.target.value)}
                   />
 
-                  {/* Type / calculation pill, below the title. */}
-                  {(isForfait || line.quantity.expression) && (
+                  {/* Type / calculation pill, below the title. Forfait shows a
+                      static label; a parsed line shows its formula as an editable
+                      field (read-only when the quote is locked). */}
+                  {isForfait ? (
                     <div className="mt-1.5">
-                      <span
-                        className={cn(
-                          "inline-block bg-zinc-100 text-zinc-500 rounded-md px-2 py-1 text-[12px]",
-                          !isForfait && "font-mono-label",
-                        )}
-                      >
-                        {isForfait ? "Forfait" : line.quantity.expression}
+                      <span className="inline-block bg-zinc-100 text-zinc-500 rounded-md px-2 py-1 text-[12px]">
+                        Forfait
                       </span>
                     </div>
-                  )}
+                  ) : line.quantity.expression !== null ? (
+                    <div className="mt-1.5">
+                      {readOnly ? (
+                        <span className="inline-block bg-zinc-100 text-zinc-500 rounded-md px-2 py-1 text-[12px] font-mono-label">
+                          {line.quantity.expression}
+                        </span>
+                      ) : (
+                        <input
+                          type="text"
+                          inputMode="text"
+                          value={line.quantity.expression}
+                          onChange={(e) => onExpression(i, line, e.target.value)}
+                          title="Modifier la formule de calcul"
+                          aria-label="Formule de calcul"
+                          className="bg-zinc-100 text-zinc-600 rounded-md px-2 py-1 text-[12px] font-mono-label outline-none focus:ring-2 focus:ring-[#ffbb94] focus:bg-white w-full max-w-[340px]"
+                        />
+                      )}
+                    </div>
+                  ) : null}
 
                   <div className="flex flex-wrap items-end gap-3 mt-3 text-[13px]">
                     <label className="flex flex-col gap-1 text-[12.5px] text-zinc-500">
@@ -319,6 +376,55 @@ export default function QuoteEditor({
               <span>HT</span>
               <span className="tabular-nums">CHF {CHF(totals.ht)}</span>
             </div>
+            {showDiscountRow && (
+              <div className="flex items-center justify-between gap-2 text-zinc-600">
+                {onDiscount && !readOnly ? (
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span>Remise</span>
+                    <div className="inline-flex rounded-md border border-zinc-200 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => changeUnit("percent")}
+                        className={cn(
+                          "px-1.5 py-0.5 text-[12px]",
+                          activeUnit === "percent" ? "bg-zinc-200 text-zinc-800" : "text-zinc-500",
+                        )}
+                      >
+                        %
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => changeUnit("fixed")}
+                        className={cn(
+                          "px-1.5 py-0.5 text-[12px]",
+                          activeUnit === "fixed" ? "bg-zinc-200 text-zinc-800" : "text-zinc-500",
+                        )}
+                      >
+                        CHF
+                      </button>
+                    </div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      aria-label="Montant de la remise"
+                      className={cn(numInput, "w-[68px]")}
+                      value={discount ? discount.value : ""}
+                      onChange={(e) => emitDiscount(activeUnit, e.target.value)}
+                    />
+                  </div>
+                ) : (
+                  <span className="text-zinc-700">{discountLabel(discount ?? null)}</span>
+                )}
+                <span className="tabular-nums">− CHF {CHF(totals.discount_amount)}</span>
+              </div>
+            )}
+            {totals.discount_amount > 0 && (
+              <div className="flex justify-between text-zinc-600">
+                <span>Net HT</span>
+                <span className="tabular-nums">CHF {CHF(totals.net)}</span>
+              </div>
+            )}
             {vat && (
               <div className="flex items-center justify-between gap-2 text-zinc-600">
                 <div className="flex items-center gap-2 min-w-0">

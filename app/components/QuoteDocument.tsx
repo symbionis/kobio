@@ -8,7 +8,7 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer";
 import type { ClientRow, CompanyRow, UserRow } from "../../src/db/types";
-import { formatCHF, totalsFromLines } from "../../src/quote/totals";
+import { discountLabel, formatCHF, totalsFromLines, type Discount } from "../../src/quote/totals";
 import type { Quote } from "../../src/quote/types";
 
 /**
@@ -60,6 +60,9 @@ const s = StyleSheet.create({
     marginTop: 4,
     paddingTop: 5,
   },
+  cgv: { marginTop: 28, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#e4e7eb" },
+  cgvLabel: { fontSize: 8, color: "#6b7280", marginBottom: 4 },
+  cgvText: { fontSize: 8, color: "#4b5563", lineHeight: 1.4 },
 });
 
 function DevisDocument({
@@ -67,6 +70,7 @@ function DevisDocument({
   client,
   quote,
   vatRate,
+  discount,
   createdAt,
   user,
 }: {
@@ -74,10 +78,11 @@ function DevisDocument({
   client: ClientRow;
   quote: Quote;
   vatRate: number | null;
+  discount: Discount | null;
   createdAt: string;
   user: UserRow | null;
 }) {
-  const totals = totalsFromLines(quote.lines, vatRate);
+  const totals = totalsFromLines(quote.lines, vatRate, discount);
   const personName = [user?.first_name, user?.last_name].filter(Boolean).join(" ").trim();
   const personContact = [user?.email, user?.phone].filter(Boolean).join(" · ");
   const dateLabel = createdAt
@@ -150,6 +155,18 @@ function DevisDocument({
             <Text>HT</Text>
             <Text>CHF {CHF(totals.ht)}</Text>
           </View>
+          {totals.discount_amount > 0 ? (
+            <>
+              <View style={s.totalRow}>
+                <Text>{discountLabel(discount)}</Text>
+                <Text>− CHF {CHF(totals.discount_amount)}</Text>
+              </View>
+              <View style={s.totalRow}>
+                <Text>Net HT</Text>
+                <Text>CHF {CHF(totals.net)}</Text>
+              </View>
+            </>
+          ) : null}
           {vatRate != null ? (
             <View style={s.totalRow}>
               <Text>TVA {vatRate}%</Text>
@@ -161,6 +178,19 @@ function DevisDocument({
             <Text>CHF {CHF(totals.ttc)}</Text>
           </View>
         </View>
+
+        {company.cgv_text ? (
+          <View style={s.cgv}>
+            <Text style={s.cgvLabel}>CONDITIONS GÉNÉRALES</Text>
+            {/* react-pdf doesn't honour raw newlines — split into paragraphs,
+                keeping blank lines as spacing. */}
+            {company.cgv_text.split("\n").map((para, i) => (
+              <Text key={i} style={s.cgvText}>
+                {para || " "}
+              </Text>
+            ))}
+          </View>
+        ) : null}
       </Page>
     </Document>
   );
@@ -172,6 +202,7 @@ export async function renderQuotePdf(
   client: ClientRow,
   quote: Quote,
   vatRate: number | null,
+  discount: Discount | null,
   createdAt: string,
   user: UserRow | null,
 ): Promise<Buffer> {
@@ -181,6 +212,7 @@ export async function renderQuotePdf(
       client={client}
       quote={quote}
       vatRate={vatRate}
+      discount={discount}
       createdAt={createdAt}
       user={user}
     />,

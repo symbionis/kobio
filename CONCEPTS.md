@@ -16,6 +16,9 @@ One priced item on a Quote. Its quantity is dictated as a formula (e.g. wall len
 ### Forfait
 A Line priced as a single lump sum with no quantity or unit — e.g. a déplacement or site cleanup. Its amount is the rate itself; there is no formula to evaluate.
 
+### Remise
+An optional, quote-level discount applied to the pre-tax total before TVA — either a percentage or a fixed amount, never per Line. Tax is computed on the discounted total (the net), and the discount is clamped so the net can never fall below zero.
+
 ### Catalog
 The builder's stored pricing for his trade, used as *memory, not source of truth*: a spoken price always overrides a catalog price, and the divergence is recorded (see Override log) so stored rates converge on his real ones over time.
 

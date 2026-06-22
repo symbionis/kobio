@@ -27,6 +27,7 @@ export default function CompanyForm({ initial }: { initial: CompanyRow | null })
     (initial?.vat_rates ?? []).map((r) => ({ label: r.label, rate: String(r.rate) })),
   );
   const [logo, setLogo] = useState<string | null>(initial?.logo_ref ?? null);
+  const [cgv, setCgv] = useState(initial?.cgv_text ?? "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +77,7 @@ export default function CompanyForm({ initial }: { initial: CompanyRow | null })
           vat_rates,
           logo_ref: logo,
           trade: trade || null,
+          cgv_text: cgv || null,
         }),
       });
       const data = (await res.json()) as { error?: string };
@@ -204,6 +206,17 @@ export default function CompanyForm({ initial }: { initial: CompanyRow | null })
             className="max-w-[160px] max-h-16 object-contain border border-line rounded-lg p-1 self-start"
           />
         )}
+        <label className={field}>
+          <span>
+            Conditions générales <span className="text-zinc-400">(figurent sur chaque devis)</span>
+          </span>
+          <textarea
+            className={`${input} min-h-[120px] resize-y leading-snug`}
+            value={cgv}
+            placeholder="Ex. Offre valable 30 jours. Acompte de 30 % à la commande. Paiement à 30 jours…"
+            onChange={(e) => setCgv(e.target.value)}
+          />
+        </label>
         <div className="flex items-center gap-3">
           <button
             className="rounded-full bg-dark text-white px-5 py-2.5 text-[14px] font-[650] hover:bg-black transition disabled:opacity-50"
