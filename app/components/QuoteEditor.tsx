@@ -2,7 +2,7 @@
 
 import { AlertTriangle, Check, Plus, Save, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
-import { round2 } from "../../src/quote/compute";
+import { applyExpression, round2 } from "../../src/quote/compute";
 import { parseNum } from "../../src/quote/input";
 import { deriveStatus } from "../../src/quote/status";
 import type { VatRate } from "../../src/db/types";
@@ -81,6 +81,14 @@ export default function QuoteEditor({
     const rate = parseNum(raw);
     const value = line.quantity.value;
     patchLine(i, { ...line, rate, amount: value === null ? round2(rate) : round2(value * rate) });
+  }
+
+  // Edit a line's calculation formula in place. Code owns the maths: the new
+  // expression is re-evaluated by the same deterministic core, a bad formula
+  // flags the line for review rather than producing a wrong number. No
+  // transcript round-trip — see applyExpression.
+  function onExpression(i: number, line: Line, raw: string) {
+    patchLine(i, applyExpression(line, raw));
   }
 
   // Append a blank forfait line — a manual flat-rate entry (free-text label,
@@ -245,19 +253,34 @@ export default function QuoteEditor({
                     onChange={(e) => onDescription(i, line, e.target.value)}
                   />
 
-                  {/* Type / calculation pill, below the title. */}
-                  {(isForfait || line.quantity.expression) && (
+                  {/* Type / calculation pill, below the title. Forfait shows a
+                      static label; a parsed line shows its formula as an editable
+                      field (read-only when the quote is locked). */}
+                  {isForfait ? (
                     <div className="mt-1.5">
-                      <span
-                        className={cn(
-                          "inline-block bg-zinc-100 text-zinc-500 rounded-md px-2 py-1 text-[12px]",
-                          !isForfait && "font-mono-label",
-                        )}
-                      >
-                        {isForfait ? "Forfait" : line.quantity.expression}
+                      <span className="inline-block bg-zinc-100 text-zinc-500 rounded-md px-2 py-1 text-[12px]">
+                        Forfait
                       </span>
                     </div>
-                  )}
+                  ) : line.quantity.expression !== null ? (
+                    <div className="mt-1.5">
+                      {readOnly ? (
+                        <span className="inline-block bg-zinc-100 text-zinc-500 rounded-md px-2 py-1 text-[12px] font-mono-label">
+                          {line.quantity.expression}
+                        </span>
+                      ) : (
+                        <input
+                          type="text"
+                          inputMode="text"
+                          value={line.quantity.expression}
+                          onChange={(e) => onExpression(i, line, e.target.value)}
+                          title="Modifier la formule de calcul"
+                          aria-label="Formule de calcul"
+                          className="bg-zinc-100 text-zinc-600 rounded-md px-2 py-1 text-[12px] font-mono-label outline-none focus:ring-2 focus:ring-[#ffbb94] focus:bg-white w-full max-w-[340px]"
+                        />
+                      )}
+                    </div>
+                  ) : null}
 
                   <div className="flex flex-wrap items-end gap-3 mt-3 text-[13px]">
                     <label className="flex flex-col gap-1 text-[12.5px] text-zinc-500">

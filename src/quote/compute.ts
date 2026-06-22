@@ -111,6 +111,51 @@ export function computeLine(line: ExtractedLine): Line {
 }
 
 /**
+ * Recompute one line from a user-edited calculation expression — the inline
+ * formula edit on the prestation row. Code stays the owner of the arithmetic:
+ * the same round-then-multiply rule as `computeLine`, the LLM is not involved.
+ *
+ * The edit is a line-level override and does not touch the transcript (a later
+ * transcript "Recalculer" still re-extracts everything, as before).
+ *
+ * fr-CH decimals: a typed comma ("2,76") is normalised to a dot before
+ * evaluation, matching how dictated expressions are stored.
+ *
+ * Failure posture (Hard Rule #3 — flag, don't guess): an empty or malformed
+ * expression never throws out of here and never substitutes a wrong number — the
+ * line keeps its prior value/amount and is flagged `needs_review`. On success the
+ * deterministic review floor is recomputed from the catalog match and price
+ * override, so a stale formula-error flag clears while a genuine low-confidence
+ * or override flag stays.
+ */
+export function applyExpression(line: Line, expr: string): Line {
+  const trimmed = expr.trim();
+  if (trimmed === "") {
+    return {
+      ...line,
+      quantity: { ...line.quantity, expression: null },
+      needs_review: true,
+    };
+  }
+
+  try {
+    const value = round2(evaluate(trimmed.replace(/,/g, ".")));
+    return {
+      ...line,
+      quantity: { ...line.quantity, expression: trimmed, value },
+      amount: round2(value * line.rate),
+      needs_review: reinforceNeedsReview(false, line.catalog_match, line.price_override),
+    };
+  } catch {
+    return {
+      ...line,
+      quantity: { ...line.quantity, expression: trimmed },
+      needs_review: true,
+    };
+  }
+}
+
+/**
  * Compute every line of an extracted quote. Pure mapping — does not touch
  * review_notes (the cross-line net owns those; see crossline.ts).
  */
