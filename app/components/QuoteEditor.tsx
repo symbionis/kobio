@@ -204,18 +204,18 @@ export default function QuoteEditor({
                       : "border-zinc-200 bg-white",
                   )}
                 >
-                  {isForfait && !readOnly && (
+                  {!readOnly && (
                     <button
                       onClick={() => removeLine(i)}
                       title="Supprimer la ligne"
-                      className="absolute top-2.5 right-2.5 text-zinc-400 hover:text-red-600 transition"
+                      className="absolute top-2.5 right-2.5 z-10 text-zinc-400 hover:text-red-600 transition"
                     >
                       <Trash2 size={16} />
                     </button>
                   )}
 
                   {line.needs_review && (
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-2 pr-7">
                       <span className="inline-flex items-center gap-1 text-[11px] font-[600] text-[#92400e] bg-amber-100 rounded-md px-2 py-0.5">
                         <AlertTriangle size={12} /> À vérifier
                       </span>
