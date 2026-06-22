@@ -157,6 +157,26 @@ export function applyExpression(line: Line, expr: string): Line {
 }
 
 /**
+ * Whether a line displays a calculation formula that no longer evaluates. The
+ * editor uses this to refuse clearing the review flag on such a line: after a
+ * malformed inline edit the line keeps its prior amount (applyExpression, Hard
+ * Rule #3), so the shown formula and the amount have silently diverged — letting
+ * the builder "mark verified" would send that contradiction to a client (Hard
+ * Rule #1). A line with no expression (forfait, bare count, or an emptied
+ * formula) has nothing on display to contradict its amount, so it is not broken.
+ */
+export function expressionIsBroken(line: Line): boolean {
+  const expr = line.quantity.expression;
+  if (expr === null || expr.trim() === "") return false;
+  try {
+    evaluate(expr.replace(/,/g, "."));
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+/**
  * Compute every line of an extracted quote. Pure mapping — does not touch
  * review_notes (the cross-line net owns those; see crossline.ts).
  */

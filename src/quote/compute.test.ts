@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { applyExpression, computeLine, derivePriceOverride, round2 } from "./compute";
+import {
+  applyExpression,
+  computeLine,
+  derivePriceOverride,
+  expressionIsBroken,
+  round2,
+} from "./compute";
 import type { CatalogMatch, ExtractedLine, Line } from "./types";
 
 function areaLine(
@@ -189,6 +195,27 @@ describe("applyExpression (inline formula edit)", () => {
     const before = JSON.stringify(input);
     applyExpression(input, "(9 + 1) * 3");
     expect(JSON.stringify(input)).toBe(before);
+  });
+});
+
+describe("expressionIsBroken", () => {
+  it("is false for a valid formula", () => {
+    expect(expressionIsBroken(computedLine({ quantity: { kind: "area", expression: "(2 + 2) * 3", value: 12, unit: "m2" } }))).toBe(false);
+  });
+
+  it("is false for a fr-CH comma formula that evaluates", () => {
+    expect(expressionIsBroken(computedLine({ quantity: { kind: "area", expression: "5,25 * 2", value: 10.5, unit: "m2" } }))).toBe(false);
+  });
+
+  it("is true for a malformed formula still on display", () => {
+    expect(expressionIsBroken(applyExpression(computedLine(), "5 + "))).toBe(true);
+    expect(expressionIsBroken(applyExpression(computedLine(), "1.2.3"))).toBe(true);
+    expect(expressionIsBroken(applyExpression(computedLine(), "4 / 0"))).toBe(true);
+  });
+
+  it("is false when there is no expression (forfait, bare count, or emptied formula)", () => {
+    expect(expressionIsBroken(computedLine({ quantity: { kind: "forfait", expression: null, value: null, unit: null } }))).toBe(false);
+    expect(expressionIsBroken(applyExpression(computedLine(), "   "))).toBe(false);
   });
 });
 

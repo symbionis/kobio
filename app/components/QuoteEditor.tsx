@@ -2,7 +2,7 @@
 
 import { AlertTriangle, Check, Plus, Save, Trash2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { applyExpression, round2 } from "../../src/quote/compute";
+import { applyExpression, expressionIsBroken, round2 } from "../../src/quote/compute";
 import { parseNum } from "../../src/quote/input";
 import { deriveStatus } from "../../src/quote/status";
 import type { VatRate } from "../../src/db/types";
@@ -137,7 +137,10 @@ export default function QuoteEditor({
   }
 
   // Clearing a line's review flag is how a Draft becomes Ready (status re-derives).
+  // Refuse it while the displayed formula doesn't evaluate: the amount is stale
+  // from before the bad edit, so verifying would ship a formula/total mismatch.
   function resolveLine(i: number, line: Line) {
+    if (expressionIsBroken(line)) return;
     patchLine(i, { ...line, needs_review: false });
   }
 
@@ -225,6 +228,7 @@ export default function QuoteEditor({
           <div className="space-y-3">
             {quote.lines.map((line, i) => {
               const isForfait = line.quantity.kind === "forfait";
+              const broken = expressionIsBroken(line);
               return (
                 <div
                   key={i}
@@ -247,13 +251,20 @@ export default function QuoteEditor({
 
                   {line.needs_review && (
                     <div className="flex items-center justify-between mb-2 pr-7">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-[600] text-[#92400e] bg-amber-100 rounded-md px-2 py-0.5">
-                        <AlertTriangle size={12} /> À vérifier
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 text-[11px] font-[600] rounded-md px-2 py-0.5",
+                          broken ? "text-[#b91c1c] bg-red-100" : "text-[#92400e] bg-amber-100",
+                        )}
+                      >
+                        <AlertTriangle size={12} /> {broken ? "Formule invalide" : "À vérifier"}
                       </span>
                       {!readOnly && (
                         <button
                           onClick={() => resolveLine(i, line)}
-                          className="inline-flex items-center gap-1 text-[12px] font-[600] text-[#92400e] border border-[#e7c890] bg-white rounded-md px-2.5 py-1 hover:bg-amber-50 transition"
+                          disabled={broken}
+                          title={broken ? "Corrigez la formule pour pouvoir vérifier" : undefined}
+                          className="inline-flex items-center gap-1 text-[12px] font-[600] text-[#92400e] border border-[#e7c890] bg-white rounded-md px-2.5 py-1 hover:bg-amber-50 transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
                         >
                           <Check size={13} /> marquer vérifié
                         </button>
