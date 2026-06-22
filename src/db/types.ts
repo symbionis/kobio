@@ -41,6 +41,9 @@ export interface CompanyRow {
   logo_ref: string | null;
   /** The builder's single trade (métier). Null until set in Réglages. */
   trade: string | null;
+  /** General terms & conditions (CGV) rendered on every devis. Null = none.
+   *  Null on rows created before migration 0018. */
+  cgv_text: string | null;
 }
 
 export interface ClientRow {

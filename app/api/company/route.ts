@@ -46,6 +46,7 @@ interface CompanyBody {
   vat_rates?: VatRate[];
   logo_ref?: string | null;
   trade?: string | null;
+  cgv_text?: string | null;
 }
 
 /** POST /api/company — upsert the owner's single company profile. */
@@ -65,6 +66,8 @@ export async function POST(request: Request): Promise<Response> {
       vat_rates: sanitizeVatRates(b.vat_rates),
       logo_ref: b.logo_ref ?? null,
       trade: asTrade(b.trade),
+      // Trim and collapse empty terms to null so the PDF renders nothing.
+      cgv_text: (b.cgv_text ?? "").trim() || null,
     });
     await captureServer(scope.ownerId, "company_saved", {
       has_logo: Boolean(b.logo_ref),

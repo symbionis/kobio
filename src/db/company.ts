@@ -13,6 +13,7 @@ export interface SaveCompanyInput {
   vat_rates: VatRate[];
   logo_ref: string | null;
   trade: string | null;
+  cgv_text: string | null;
 }
 
 /** The owner's single company profile, or null if not set yet. */
@@ -45,6 +46,7 @@ export async function saveCompany(scope: OwnerScope, input: SaveCompanyInput): P
     vat_rates: input.vat_rates,
     logo_ref: input.logo_ref,
     trade: input.trade,
+    cgv_text: input.cgv_text,
     updated_at: new Date().toISOString(),
   };
   const { data, error } = await scope.supabase
