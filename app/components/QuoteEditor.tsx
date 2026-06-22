@@ -6,7 +6,7 @@ import { applyExpression, round2 } from "../../src/quote/compute";
 import { parseNum } from "../../src/quote/input";
 import { deriveStatus } from "../../src/quote/status";
 import type { VatRate } from "../../src/db/types";
-import { formatCHF, totalsFromLines, type Discount } from "../../src/quote/totals";
+import { discountLabel, formatCHF, totalsFromLines, type Discount } from "../../src/quote/totals";
 import type { Line, Quote } from "../../src/quote/types";
 import { cn } from "../lib/cn";
 import RateSelect from "./RateSelect";
@@ -403,9 +403,7 @@ export default function QuoteEditor({
                     />
                   </div>
                 ) : (
-                  <span className="text-zinc-700">
-                    Remise{discount?.kind === "percent" ? ` ${discount.value}%` : ""}
-                  </span>
+                  <span className="text-zinc-700">{discountLabel(discount ?? null)}</span>
                 )}
                 <span className="tabular-nums">− CHF {CHF(totals.discount_amount)}</span>
               </div>

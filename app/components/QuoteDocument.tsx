@@ -8,7 +8,7 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer";
 import type { ClientRow, CompanyRow, UserRow } from "../../src/db/types";
-import { formatCHF, totalsFromLines, type Discount } from "../../src/quote/totals";
+import { discountLabel, formatCHF, totalsFromLines, type Discount } from "../../src/quote/totals";
 import type { Quote } from "../../src/quote/types";
 
 /**
@@ -158,7 +158,7 @@ function DevisDocument({
           {totals.discount_amount > 0 ? (
             <>
               <View style={s.totalRow}>
-                <Text>Remise{discount?.kind === "percent" ? ` ${discount.value}%` : ""}</Text>
+                <Text>{discountLabel(discount)}</Text>
                 <Text>− CHF {CHF(totals.discount_amount)}</Text>
               </View>
               <View style={s.totalRow}>

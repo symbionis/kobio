@@ -7,7 +7,7 @@ import type { QuoteRow } from "./types";
 vi.mock("./overrides", () => ({ logOverrides: vi.fn() }));
 
 import { logOverrides } from "./overrides";
-import { persistQuote, rowToQuote } from "./quotes";
+import { persistQuote, rowToQuote, saveQuote } from "./quotes";
 
 const mockedLogOverrides = vi.mocked(logOverrides);
 
@@ -120,5 +120,84 @@ describe("persistQuote", () => {
       discount: { kind: "percent", value: 10 },
     });
     expect(captured?.discount).toEqual({ kind: "percent", value: 10 });
+  });
+});
+
+describe("saveQuote self-heal", () => {
+  const input = {
+    title: "T",
+    contact: { spoken_name: "x", match: null, action: "match_or_create" as const },
+    client_id: null,
+    tax_rate_default: 8.1,
+    lines: [],
+    review_notes: [],
+    sent: false,
+    accepted: false,
+    sent_at: null,
+    accepted_at: null,
+    vat_rate: 8.1,
+    discount: { kind: "percent" as const, value: 10 },
+    transcript: "hi",
+  };
+
+  it("retries without the optional columns on a missing-column error (PGRST204), dropping discount", async () => {
+    const rows: Record<string, unknown>[] = [];
+    let calls = 0;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const scope = {
+      ownerId: "o",
+      supabase: {
+        from: () => ({
+          upsert: (r: Record<string, unknown>) => {
+            rows.push(r);
+            calls += 1;
+            const firstAttempt = calls === 1;
+            return {
+              select: () => ({
+                single: async () =>
+                  firstAttempt
+                    ? { data: null, error: { code: "PGRST204", message: "Could not find the 'discount' column" } }
+                    : { data: { id: "saved-1" }, error: null },
+              }),
+            };
+          },
+        }),
+      },
+    } as unknown as OwnerScope;
+
+    const saved = await saveQuote(scope, input);
+    expect(saved.id).toBe("saved-1");
+    expect(calls).toBe(2);
+    expect(rows[0]).toHaveProperty("discount");
+    expect(rows[1]).not.toHaveProperty("discount");
+    expect(rows[1]).not.toHaveProperty("transcript");
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("does NOT retry on an unrelated error that merely mentions 'discount' — it throws", async () => {
+    let calls = 0;
+    const scope = {
+      ownerId: "o",
+      supabase: {
+        from: () => ({
+          upsert: () => {
+            calls += 1;
+            return {
+              select: () => ({
+                single: async () => ({
+                  data: null,
+                  // A value-level error that happens to contain the word — must not trip the retry.
+                  error: { code: "23514", message: "new row violates check constraint on discount" },
+                }),
+              }),
+            };
+          },
+        }),
+      },
+    } as unknown as OwnerScope;
+
+    await expect(saveQuote(scope, input)).rejects.toThrow(/saveQuote failed/);
+    expect(calls).toBe(1);
   });
 });

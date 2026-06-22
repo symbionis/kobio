@@ -118,8 +118,9 @@ export function computeLine(line: ExtractedLine): Line {
  * The edit is a line-level override and does not touch the transcript (a later
  * transcript "Recalculer" still re-extracts everything, as before).
  *
- * fr-CH decimals: a typed comma ("2,76") is normalised to a dot before
- * evaluation, matching how dictated expressions are stored.
+ * fr-CH decimals: a typed comma ("2,76") is normalised to a dot for evaluation
+ * only (fr-CH keyboards); the raw text the builder typed is kept verbatim in
+ * `expression`. (Dictated expressions are already stored with dots.)
  *
  * Failure posture (Hard Rule #3 — flag, don't guess): an empty or malformed
  * expression never throws out of here and never substitutes a wrong number — the

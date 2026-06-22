@@ -65,9 +65,15 @@ export async function saveQuote(scope: OwnerScope, input: SaveQuoteInput): Promi
   const row = { ...base, discount: input.discount ?? null, transcript: input.transcript ?? null };
 
   let { data, error } = await scope.supabase.from("quotes").upsert(row).select().single();
-  // Self-healing: before those migrations the columns don't exist and PostgREST
-  // rejects the unknown keys — retry without them so saves never break.
-  if (error && /transcript|discount/i.test(error.message)) {
+  // Self-healing for pre-migration DBs: when the transcript (0006) or discount
+  // (0017) column doesn't exist yet, PostgREST rejects the unknown key with a
+  // schema-cache miss (PGRST204) / undefined_column (42703). Detect that by CODE,
+  // not by matching the column name in the message — `discount` is user data and
+  // a value-level error mentioning it must NOT trip the retry (that would
+  // silently re-save without the remise). The retry drops both optional columns
+  // together; a genuine other failure still throws loudly below.
+  if (error && (error.code === "PGRST204" || error.code === "42703")) {
+    console.warn(`saveQuote: optional column missing, retrying without transcript/discount — ${error.message}`);
     ({ data, error } = await scope.supabase.from("quotes").upsert(base).select().single());
   }
   if (error) throw new Error(`saveQuote failed: ${error.message}`);

@@ -20,6 +20,29 @@ export type Discount =
   | { kind: "percent"; value: number }
   | { kind: "fixed"; value: number };
 
+/**
+ * Normalise a discount from an untrusted source (request body, stored jsonb)
+ * into a well-formed Discount or null. Rejects unknown kinds and non-finite /
+ * non-positive values, and clamps a percentage into 0..100. The fixed/HT ceiling
+ * stays in `discountAmount` (it needs the line total). Returns null for "no
+ * discount" — the API and read paths should run untrusted input through this so
+ * a malformed value can never reach the money math.
+ */
+export function normalizeDiscount(raw: unknown): Discount | null {
+  if (!raw || typeof raw !== "object") return null;
+  const { kind, value } = raw as { kind?: unknown; value?: unknown };
+  if (kind !== "percent" && kind !== "fixed") return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return kind === "percent" ? { kind, value: Math.min(n, 100) } : { kind, value: n };
+}
+
+/** The remise label shown on the recap and the PDF (e.g. "Remise" / "Remise 10%").
+ *  One place so the on-screen total and the PDF never drift. */
+export function discountLabel(discount: Discount | null): string {
+  return discount?.kind === "percent" ? `Remise ${discount.value}%` : "Remise";
+}
+
 export interface Totals {
   /** Hors taxe — sum of line amounts, before any remise. */
   ht: number;
@@ -42,7 +65,9 @@ export const VAT_RATE = 8.1;
  * non-positive or absent discount removes nothing.
  */
 export function discountAmount(ht: number, discount: Discount | null): number {
-  if (!discount || discount.value <= 0) return 0;
+  // Reject non-finite (NaN/Infinity) and non-positive values: NaN <= 0 is false,
+  // so without the isFinite guard a poisoned value would flow into net/tva/ttc.
+  if (!discount || !Number.isFinite(discount.value) || discount.value <= 0) return 0;
   if (discount.kind === "percent") {
     return round2((ht * Math.min(discount.value, 100)) / 100);
   }
