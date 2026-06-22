@@ -1,12 +1,12 @@
 "use client";
 
 import { AlertTriangle, Check, Plus, Save, Trash2 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { applyExpression, round2 } from "../../src/quote/compute";
 import { parseNum } from "../../src/quote/input";
 import { deriveStatus } from "../../src/quote/status";
 import type { VatRate } from "../../src/db/types";
-import { formatCHF, totalsFromLines } from "../../src/quote/totals";
+import { formatCHF, totalsFromLines, type Discount } from "../../src/quote/totals";
 import type { Line, Quote } from "../../src/quote/types";
 import { cn } from "../lib/cn";
 import RateSelect from "./RateSelect";
@@ -33,6 +33,11 @@ interface QuoteEditorProps {
      *  bounce them to /login) is replaced by a plain "Aucune". */
     configurable?: boolean;
   };
+  /** Optional quote-level discount (remise), applied to HT before TVA. When
+   *  `onDiscount` is provided an editable remise control renders in the totals;
+   *  pass neither to hide the discount entirely. */
+  discount?: Discount | null;
+  onDiscount?: (discount: Discount | null) => void;
   /** Extra controls rendered in the sticky right rail, below the totals
    *  (e.g. client picker, status, PDF on the saved-quote screen). */
   summaryExtras?: ReactNode;
@@ -60,10 +65,27 @@ export default function QuoteEditor({
   saving,
   saveLabel,
   vat,
+  discount,
+  onDiscount,
   summaryExtras,
   afterTitle,
   readOnly = false,
 }: QuoteEditorProps) {
+  // The remise unit (% / CHF). Tracks the active discount's kind; defaults to
+  // percent so the toggle works before any amount is entered.
+  const [discountUnit, setDiscountUnit] = useState<"percent" | "fixed">(discount?.kind ?? "percent");
+  const activeUnit = discount?.kind ?? discountUnit;
+
+  function emitDiscount(unit: "percent" | "fixed", raw: string) {
+    const value = parseNum(raw);
+    onDiscount?.(value > 0 ? { kind: unit, value } : null);
+  }
+
+  function changeUnit(unit: "percent" | "fixed") {
+    setDiscountUnit(unit);
+    if (discount) onDiscount?.({ kind: unit, value: discount.value });
+  }
+
   function patchLine(index: number, next: Line) {
     onChange({ ...quote, lines: quote.lines.map((l, i) => (i === index ? next : l)) });
   }
@@ -121,7 +143,8 @@ export default function QuoteEditor({
 
   const vatRate = vat ? vat.selected : null;
   const vatLocked = readOnly || Boolean(vat?.locked);
-  const totals = totalsFromLines(quote.lines, vatRate);
+  const totals = totalsFromLines(quote.lines, vatRate, discount ?? null);
+  const showDiscountRow = (onDiscount && !readOnly) || totals.discount_amount > 0;
   const status = deriveStatus(quote.lines, false);
   const isDraft = status === "Draft";
 
@@ -342,6 +365,57 @@ export default function QuoteEditor({
               <span>HT</span>
               <span className="tabular-nums">CHF {CHF(totals.ht)}</span>
             </div>
+            {showDiscountRow && (
+              <div className="flex items-center justify-between gap-2 text-zinc-600">
+                {onDiscount && !readOnly ? (
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span>Remise</span>
+                    <div className="inline-flex rounded-md border border-zinc-200 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => changeUnit("percent")}
+                        className={cn(
+                          "px-1.5 py-0.5 text-[12px]",
+                          activeUnit === "percent" ? "bg-zinc-200 text-zinc-800" : "text-zinc-500",
+                        )}
+                      >
+                        %
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => changeUnit("fixed")}
+                        className={cn(
+                          "px-1.5 py-0.5 text-[12px]",
+                          activeUnit === "fixed" ? "bg-zinc-200 text-zinc-800" : "text-zinc-500",
+                        )}
+                      >
+                        CHF
+                      </button>
+                    </div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      aria-label="Montant de la remise"
+                      className={cn(numInput, "w-[68px]")}
+                      value={discount ? discount.value : ""}
+                      onChange={(e) => emitDiscount(activeUnit, e.target.value)}
+                    />
+                  </div>
+                ) : (
+                  <span className="text-zinc-700">
+                    Remise{discount?.kind === "percent" ? ` ${discount.value}%` : ""}
+                  </span>
+                )}
+                <span className="tabular-nums">− CHF {CHF(totals.discount_amount)}</span>
+              </div>
+            )}
+            {totals.discount_amount > 0 && (
+              <div className="flex justify-between text-zinc-600">
+                <span>Net HT</span>
+                <span className="tabular-nums">CHF {CHF(totals.net)}</span>
+              </div>
+            )}
             {vat && (
               <div className="flex items-center justify-between gap-2 text-zinc-600">
                 <div className="flex items-center gap-2 min-w-0">

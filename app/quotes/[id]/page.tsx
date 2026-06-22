@@ -32,6 +32,7 @@ export default async function SavedQuotePage({
         accepted={row.accepted}
         vatRate={row.vat_rate == null ? null : Number(row.vat_rate)}
         vatRates={company?.vat_rates ?? []}
+        discount={row.discount ?? null}
         createdAt={row.created_at}
         sentAt={row.sent_at}
         acceptedAt={row.accepted_at}

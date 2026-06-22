@@ -8,7 +8,7 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer";
 import type { ClientRow, CompanyRow, UserRow } from "../../src/db/types";
-import { formatCHF, totalsFromLines } from "../../src/quote/totals";
+import { formatCHF, totalsFromLines, type Discount } from "../../src/quote/totals";
 import type { Quote } from "../../src/quote/types";
 
 /**
@@ -67,6 +67,7 @@ function DevisDocument({
   client,
   quote,
   vatRate,
+  discount,
   createdAt,
   user,
 }: {
@@ -74,10 +75,11 @@ function DevisDocument({
   client: ClientRow;
   quote: Quote;
   vatRate: number | null;
+  discount: Discount | null;
   createdAt: string;
   user: UserRow | null;
 }) {
-  const totals = totalsFromLines(quote.lines, vatRate);
+  const totals = totalsFromLines(quote.lines, vatRate, discount);
   const personName = [user?.first_name, user?.last_name].filter(Boolean).join(" ").trim();
   const personContact = [user?.email, user?.phone].filter(Boolean).join(" · ");
   const dateLabel = createdAt
@@ -150,6 +152,18 @@ function DevisDocument({
             <Text>HT</Text>
             <Text>CHF {CHF(totals.ht)}</Text>
           </View>
+          {totals.discount_amount > 0 ? (
+            <>
+              <View style={s.totalRow}>
+                <Text>Remise{discount?.kind === "percent" ? ` ${discount.value}%` : ""}</Text>
+                <Text>− CHF {CHF(totals.discount_amount)}</Text>
+              </View>
+              <View style={s.totalRow}>
+                <Text>Net HT</Text>
+                <Text>CHF {CHF(totals.net)}</Text>
+              </View>
+            </>
+          ) : null}
           {vatRate != null ? (
             <View style={s.totalRow}>
               <Text>TVA {vatRate}%</Text>
@@ -172,6 +186,7 @@ export async function renderQuotePdf(
   client: ClientRow,
   quote: Quote,
   vatRate: number | null,
+  discount: Discount | null,
   createdAt: string,
   user: UserRow | null,
 ): Promise<Buffer> {
@@ -181,6 +196,7 @@ export async function renderQuotePdf(
       client={client}
       quote={quote}
       vatRate={vatRate}
+      discount={discount}
       createdAt={createdAt}
       user={user}
     />,
