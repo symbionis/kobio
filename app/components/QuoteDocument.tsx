@@ -60,6 +60,9 @@ const s = StyleSheet.create({
     marginTop: 4,
     paddingTop: 5,
   },
+  cgv: { marginTop: 28, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#e4e7eb" },
+  cgvLabel: { fontSize: 8, color: "#6b7280", marginBottom: 4 },
+  cgvText: { fontSize: 8, color: "#4b5563", lineHeight: 1.4 },
 });
 
 function DevisDocument({
@@ -175,6 +178,19 @@ function DevisDocument({
             <Text>CHF {CHF(totals.ttc)}</Text>
           </View>
         </View>
+
+        {company.cgv_text ? (
+          <View style={s.cgv}>
+            <Text style={s.cgvLabel}>CONDITIONS GÉNÉRALES</Text>
+            {/* react-pdf doesn't honour raw newlines — split into paragraphs,
+                keeping blank lines as spacing. */}
+            {company.cgv_text.split("\n").map((para, i) => (
+              <Text key={i} style={s.cgvText}>
+                {para || " "}
+              </Text>
+            ))}
+          </View>
+        ) : null}
       </Page>
     </Document>
   );
