@@ -39,6 +39,7 @@ function row(overrides: Partial<QuoteRow> = {}): QuoteRow {
     accepted_at: null,
     tva_applicable: true,
     vat_rate: 8.1,
+    discount: null,
     transcript: null,
     trade: null,
     created_at: "",
@@ -91,5 +92,33 @@ describe("persistQuote", () => {
     mockedLogOverrides.mockResolvedValueOnce(undefined);
     const saved = await persistQuote(scope, quote, { client_id: "c1", sent: true, accepted: true, sent_at: null, accepted_at: null, vat_rate: null });
     expect(saved.id).toBe("saved-1");
+  });
+
+  it("serialises the discount onto the upserted row", async () => {
+    mockedLogOverrides.mockResolvedValueOnce(undefined);
+    let captured: Record<string, unknown> | undefined;
+    const capturingScope = {
+      ownerId: "o",
+      supabase: {
+        from: () => ({
+          upsert: (r: Record<string, unknown>) => {
+            captured = r;
+            return {
+              select: () => ({ single: async () => ({ data: { id: "saved-1" }, error: null }) }),
+            };
+          },
+        }),
+      },
+    } as unknown as OwnerScope;
+    await persistQuote(capturingScope, quote, {
+      client_id: null,
+      sent: false,
+      accepted: false,
+      sent_at: null,
+      accepted_at: null,
+      vat_rate: 8.1,
+      discount: { kind: "percent", value: 10 },
+    });
+    expect(captured?.discount).toEqual({ kind: "percent", value: 10 });
   });
 });

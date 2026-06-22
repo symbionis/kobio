@@ -1,4 +1,5 @@
 import { asTrade } from "../quote/trades";
+import type { Discount } from "../quote/totals";
 import type { Contact, Line, Quote } from "../quote/types";
 import type { OwnerScope } from "./auth";
 import { logOverrides } from "./overrides";
@@ -23,6 +24,9 @@ export interface SaveQuoteInput {
   accepted_at: string | null;
   /** Chosen VAT rate for this devis, or null for "Aucune". */
   vat_rate: number | null;
+  /** Optional quote-level discount (remise); persisted when migration 0017 has
+   *  been applied. */
+  discount?: Discount | null;
   /** Source voice transcript; persisted when migration 0006 has been applied. */
   transcript?: string | null;
   /** The trade (métier) active at dictation. */
@@ -57,12 +61,13 @@ export async function saveQuote(scope: OwnerScope, input: SaveQuoteInput): Promi
     trade: asTrade(input.trade),
     updated_at: new Date().toISOString(),
   };
-  const row = { ...base, transcript: input.transcript ?? null };
+  // transcript (migration 0006) and discount (0017) layer on top of base.
+  const row = { ...base, discount: input.discount ?? null, transcript: input.transcript ?? null };
 
   let { data, error } = await scope.supabase.from("quotes").upsert(row).select().single();
-  // Self-healing: before migration 0006 the transcript column doesn't exist and
-  // PostgREST rejects the unknown key — retry without it so saves never break.
-  if (error && /transcript/i.test(error.message)) {
+  // Self-healing: before those migrations the columns don't exist and PostgREST
+  // rejects the unknown keys — retry without them so saves never break.
+  if (error && /transcript|discount/i.test(error.message)) {
     ({ data, error } = await scope.supabase.from("quotes").upsert(base).select().single());
   }
   if (error) throw new Error(`saveQuote failed: ${error.message}`);
@@ -100,6 +105,7 @@ export async function persistQuote(
     sent_at: string | null;
     accepted_at: string | null;
     vat_rate: number | null;
+    discount?: Discount | null;
     transcript?: string | null;
     trade?: string | null;
   },
@@ -117,6 +123,7 @@ export async function persistQuote(
     sent_at: opts.sent_at,
     accepted_at: opts.accepted_at,
     vat_rate: opts.vat_rate,
+    discount: opts.discount,
     transcript: opts.transcript,
     trade: opts.trade,
   });

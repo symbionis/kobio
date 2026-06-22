@@ -47,6 +47,62 @@ describe("totalsFromLines", () => {
   });
 
   it("is zero for an empty quote", () => {
-    expect(totalsFromLines([])).toEqual({ ht: 0, tva: 0, ttc: 0 });
+    expect(totalsFromLines([])).toEqual({ ht: 0, discount_amount: 0, net: 0, tva: 0, ttc: 0 });
+  });
+
+  it("a null discount leaves totals unchanged (net = HT)", () => {
+    const t = totalsFromLines([line(1000)], 8.1, null);
+    expect(t).toEqual({ ht: 1000, discount_amount: 0, net: 1000, tva: 81, ttc: 1081 });
+  });
+});
+
+describe("totalsFromLines with a discount (remise)", () => {
+  it("applies a percentage to HT before TVA", () => {
+    const t = totalsFromLines([line(1000)], 8.1, { kind: "percent", value: 10 });
+    expect(t.discount_amount).toBe(100);
+    expect(t.net).toBe(900);
+    expect(t.tva).toBe(72.9);
+    expect(t.ttc).toBe(972.9);
+  });
+
+  it("applies a fixed amount to HT before TVA", () => {
+    const t = totalsFromLines([line(1000)], 8.1, { kind: "fixed", value: 150 });
+    expect(t.discount_amount).toBe(150);
+    expect(t.net).toBe(850);
+    expect(t.tva).toBe(68.85);
+    expect(t.ttc).toBe(918.85);
+  });
+
+  it("clamps a fixed discount that exceeds HT so net never goes below 0", () => {
+    const t = totalsFromLines([line(100)], 8.1, { kind: "fixed", value: 150 });
+    expect(t.discount_amount).toBe(100);
+    expect(t.net).toBe(0);
+    expect(t.tva).toBe(0);
+    expect(t.ttc).toBe(0);
+  });
+
+  it("clamps a percentage above 100 to 100 (net 0)", () => {
+    const t = totalsFromLines([line(100)], 8.1, { kind: "percent", value: 150 });
+    expect(t.net).toBe(0);
+    expect(t.ttc).toBe(0);
+  });
+
+  it("ignores a non-positive discount", () => {
+    expect(totalsFromLines([line(1000)], 8.1, { kind: "percent", value: 0 }).net).toBe(1000);
+    expect(totalsFromLines([line(1000)], 8.1, { kind: "fixed", value: -50 }).net).toBe(1000);
+  });
+
+  it("applies the discount with 0% VAT (TVA 0, TTC = net)", () => {
+    const t = totalsFromLines([line(1000)], 0, { kind: "percent", value: 10 });
+    expect(t.net).toBe(900);
+    expect(t.tva).toBe(0);
+    expect(t.ttc).toBe(900);
+  });
+
+  it("rounds the discount amount to 2dp", () => {
+    // 333.33 * 33% = 109.9989 → rounds to 110.00
+    const t = totalsFromLines([line(333.33)], null, { kind: "percent", value: 33 });
+    expect(t.discount_amount).toBe(110);
+    expect(t.net).toBe(223.33);
   });
 });

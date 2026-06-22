@@ -6,6 +6,7 @@
  */
 
 import type { Contact, Line } from "../quote/types";
+import type { Discount } from "../quote/totals";
 
 /** One configurable VAT rate the builder can apply to a devis. The label is
  *  free text (e.g. "Normal", "Réduit"); `rate` is the percentage (8.1 = 8.1%). */
@@ -73,6 +74,9 @@ export interface QuoteRow {
   tva_applicable: boolean;
   /** The single VAT rate chosen for this devis, or null for "Aucune". */
   vat_rate: number | null;
+  /** Optional quote-level discount (remise), applied to HT before TVA. Null =
+   *  none. Null on rows created before migration 0017. */
+  discount: Discount | null;
   /** Source voice transcript. Null on rows created before migration 0006. */
   transcript: string | null;
   /** The trade (métier) active at dictation; scopes catalog candidates. */
