@@ -25,34 +25,57 @@ https://developer.bexio.com/pat.
 
 ## Production secrets (1Password)
 
-`npm start` runs `scripts/start.mjs`. It reads the server secrets from the
-1Password Environment `apps-kobio-prod` using the 1Password JS SDK
-(`@1password/sdk`, pinned), then starts `next start` with them in its
-environment. The host must provide two variables:
+Every value set by hand lives in the 1Password Environment `apps-kobio-prod`.
+`npm run build` and `npm start` both go through one wrapper,
+`scripts/with-1password.mjs`. It reads the Environment with the 1Password JS SDK
+(`@1password/sdk`, pinned), then runs the command with those variables added to
+its environment:
+
+```bash
+node scripts/with-1password.mjs --public-only next build   # npm run build
+node scripts/with-1password.mjs next start                 # npm start
+```
+
+The host must provide two variables, at build and at runtime (Railway passes
+service variables to the build):
 
 - `OP_SERVICE_ACCOUNT_TOKEN`: read-only service account that can read only `apps-kobio-prod`
 - `OP_ENVIRONMENT_ID`: the Environment's id
 
-The Environment holds `OPENROUTER_API_KEY`, `SLACK_FEEDBACK_WEBHOOK_URL`,
-`SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_URL`. If a name is set in both the
-host and the Environment, the Environment's value is used. The token itself is
-not passed on to Next.
+`--public-only` (build) passes only the `NEXT_PUBLIC_*` names, which Next inlines
+into the bundle: `NEXT_PUBLIC_POSTHOG_HOST`, `NEXT_PUBLIC_POSTHOG_KEY`,
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`. Server
+secrets are kept out of `next build` entirely, so nothing can bake them into
+`.next`. If the host still holds a copy of one, the wrapper removes it from the
+build's environment too.
+
+Without the flag (start), every name in the Environment is passed. The server
+needs `OPENROUTER_API_KEY`, `SLACK_FEEDBACK_WEBHOOK_URL`,
+`SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_URL`.
+
+The required names for each mode sit in one `REQUIRED` list at the top of the
+wrapper; it's the only per-service part, so the file can be copied to the next
+Node service as is. If a name is set in both the host and the Environment, the
+Environment's value is used. The token itself is not passed on to the command.
 
 It fails fast. If the token or id is missing, 1Password can't be reached
-(30 s timeout), or one of those four is missing from the Environment, it exits 1
-and Next never starts. It logs the names it loaded, never the values.
+(30 s timeout), or a required name is missing from the Environment, it exits 1
+and the command never runs. It logs the names it passed, never the values; the
+build log lists the four public names only.
 
-`NEXT_PUBLIC_*` variables stay on Railway. Next inlines them at `next build`, so
-loading them at start time would be too late.
+A change in 1Password takes effect on the next deploy. A server secret also
+changes on a restart; a public name needs a rebuild.
 
-A change in 1Password takes effect on the next deploy or restart.
-
-Local dev: either keep using `.env`, or read the same Environment through the
-desktop app:
+Local dev is unchanged: `npm run dev` with `.env`, or read the same Environment
+through the desktop app:
 
 ```bash
 op run --environment <id> -- npm run dev
 ```
+
+A local `npm run build` / `npm start` needs `OP_SERVICE_ACCOUNT_TOKEN` and
+`OP_ENVIRONMENT_ID` like production. To build against `.env` instead, run
+`npx next build` directly.
 
 ## Build order
 
