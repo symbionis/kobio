@@ -77,9 +77,11 @@ the rest. That split is the product, not a limitation.
 
 - Stack: TypeScript, ESM. Prototype is Next.js on Railway. Supabase available
   but not required yet.
-- Production server secrets come from the 1Password Environment
-  `apps-kobio-prod`, loaded at start by `scripts/start.mjs` (`npm start`). See
-  README "Production secrets". `.env` is still fine for local dev.
+- Production variables come from the 1Password Environment `apps-kobio-prod`
+  through one wrapper, `scripts/with-1password.mjs`: `npm run build` loads only
+  the `NEXT_PUBLIC_*` names (`--public-only`, server secrets kept out of the
+  build), `npm start` loads everything. Required names live in its `REQUIRED`
+  list. See README "Production secrets". `.env` is still fine for local dev.
 - Bexio API base `https://api.bexio.com`, resources under `/2.0`.
 - The PAT expires 6 months after creation. Set a reminder to regenerate.
 - `docs/solutions/` — documented learnings from past work (architecture

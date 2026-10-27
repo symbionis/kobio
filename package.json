@@ -6,8 +6,8 @@
   "description": "Voice note to Bexio quote. Read-first, draft-only writes.",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "node scripts/start.mjs",
+    "build": "node scripts/with-1password.mjs --public-only next build",
+    "start": "node scripts/with-1password.mjs next start",
     "test": "vitest run",
     "test:watch": "vitest",
     "extract": "tsx scripts/extract.ts",
